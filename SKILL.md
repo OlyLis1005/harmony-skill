@@ -1,6 +1,7 @@
 ---
 name: harmony-skill
 description: 鸿蒙（HarmonyOS NEXT）应用开发技能包。当用户需要开发鸿蒙应用、编写 ArkTS/ArkUI 代码、创建鸿蒙工程、调试鸿蒙应用、使用 Electron 框架开发鸿蒙 PC 应用、将现有 Electron 项目迁移到鸿蒙、或咨询鸿蒙开发相关问题时触发此技能。覆盖环境搭建、工程结构、ArkTS 语法、ArkUI 声明式 UI、Electron for HarmonyOS、应用模型（Stage 模型）、路由导航、网络请求、数据持久化、应用签名与发布等全流程开发场景。以华为官方文档为准。
+version: 1.0.0
 agent_created: true
 ---
 

@@ -580,9 +580,43 @@ type DoorDirection = 'left' | 'right'
 | 嵌套对象属性变化 | `@Observed` class + 子组件 `@ObjectLink` |
 | `interface` 需要深层观察 | 改为 `@Observed class` + constructor |
 | `JSON.parse(JSON.stringify(x))` | 手写 `cloneXxx()` 函数 |
+| `private scale = 1`（与基类冲突） | 改名 `drawScale` 等不冲突的词 |
 | `array.filter(fn)` / `array.map(fn)` | for 循环 |
 | `enum X { ... }` | `type X = 'a' \| 'b'` |
 | `import { Canvas } from '@kit.ArkUI'` | 不 import，组件内直接使用 |
+
+---
+
+## 15. CustomComponent 属性名冲突 — 不能用内置方法名做变量名
+
+**触发条件**：在 `@Component` struct 中声明 `private`/`@State` 变量时，使用了 ArkUI `CustomComponent` 基类的内置属性方法名。
+
+ArkUI 的 `CustomComponent` 基类自带大量属性方法（如 `.scale()`, `.opacity()`, `.rotate()`, `.translate()`, `.width()`, `.height()` 等），这些方法名同时也是属性名。如果你的变量名和它们同名，编译器会报类型冲突：
+
+```
+Property 'scale' in type 'Index' is not assignable to the same property in base type 'CustomComponent'.
+Type 'number' is not assignable to type '{ (value: ScaleOptions): CommonAttribute; ... }'.
+```
+
+**错误写法**：
+```typescript
+@Entry
+@Component
+struct Index {
+  private scale: number = 1  // ❌ 与 CustomComponent.scale 冲突
+}
+```
+
+**正确写法**：使用不会冲突的命名（加前缀或换词）。
+```typescript
+@Entry
+@Component
+struct Index {
+  private drawScale: number = 1  // ✅ 不冲突
+}
+```
+
+> 💡 **已知冲突词列表**：scale, opacity, rotate, translate, width, height, margin, padding, border, offset, position, flex, align, visibility, enabled, focus, gesture, response, transition, animation, shadow, blur, grayscale, brightness, saturate, invert, sepia, hueRotate, clip, mask, overlay, zIndex, id, key, grid, gridSpan, gridOffset, useSize, constraintSize, aspectRatio, decoration, backgroundColor, backgroundImage, backgroundBlur, clipShape, shape, ripple, hover, pressed, selected, checked, style, draggable, drag, drop, bind, on, gestureGroup, priority, parallel, sequence, custom, hitTest, touch, mouse, key, focus, hover, appear, disappear, area, size, layout, draw, render, measure, align, alignSelf, alignSelf, flexGrow, flexShrink, flexBasis, display, visibility, aspectRatio
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: harmony-skill
 description: 鸿蒙（HarmonyOS NEXT）应用开发技能包。当用户需要开发鸿蒙应用、编写 ArkTS/ArkUI 代码、创建鸿蒙工程、调试鸿蒙应用、使用 Electron 框架开发鸿蒙 PC 应用、将现有 Electron 项目迁移到鸿蒙、或咨询鸿蒙开发相关问题时触发此技能。覆盖环境搭建、工程结构、ArkTS 语法、ArkUI 声明式 UI、Electron for HarmonyOS、应用模型（Stage 模型）、路由导航、网络请求、数据持久化、应用签名与发布等全流程开发场景。以华为官方文档为准。
-version: 1.3.1
+version: 1.5.0
 agent_created: true
 ---
 
@@ -15,7 +15,10 @@ agent_created: true
 | 1.0.1 | 2026-06-11 | 新增第 12-13 条：@State/@Observed/@ObjectLink 深层观察机制 |
 | 1.1.0 | 2026-06-12 | 新增第 14-15 条：`as` 断言禁止(10605008)、CustomComponent 属性名冲突；速查表+翻译表新增对应行 |
 | 1.2.0 | 2026-06-12 | 新增第 16 条：AlertDialog.show/ActionSheet.show 废弃→UIContext 方法；速查表新增对应行 |
-| 1.1.0 | 2026-06-12 | 新增第 14-15 条：`as` 断言禁止(10605008)、CustomComponent 属性名冲突；速查表+翻译表新增对应行 |
+| 1.3.0 | 2026-06-12 | ActionSheet 样式陷阱 + CustomDialog 标准模式 + 弹窗最佳实践章节 |
+| 1.3.1 | 2026-06-12 | **⚠️ 修正 CustomDialog controller 自引用 bug**：自引用 `= new CustomDialogController({ builder: 自身 })` 导致 controller undefined |
+| 1.4.0 | 2026-06-12 | **controller 声明改为可选**（`controller?: CustomDialogController`）避免 "runtime-independent default value" 编译器错误；`close()` 改为安全调用 `?.close()` |
+| 1.5.0 | 2026-06-12 | **CustomDialog 关闭改为 onClose 回调**：避免 `controller: ctrl` TDZ 错误 + `const ctrl` 需显式类型注解 + 箭头函数需用函数体语法 `{}` |
 
 ## 概述
 
@@ -555,21 +558,24 @@ backgroundColor: '#faf8f2',
 // 1. 定义自定义弹窗
 @CustomDialog
 struct MyActionDialog {
-  // ⚠️ controller 不能用默认值初始化！
-  // 错误写法：controller: CustomDialogController = new CustomDialogController({ builder: MyActionDialog({}) })
-  // 自引用构造会导致 controller 为 undefined，close() 报 TypeError
-  // 正确写法：只声明类型，由框架自动注入实例
-  controller: CustomDialogController;
+  // ⚠️ controller 必须用可选声明 `?`（新版 ArkTS 编译器强制要求）
+  // 只声明 `controller: CustomDialogController;`（无默认值）会触发编译错误：
+  //   "If a component attribute supports local initialization,
+  //    a valid, runtime-independent default value should be set for it"
+  // 去掉 controller 属性也会报错："@CustomDialog must contain CustomDialogController property"
+  // 正确方案：可选语法 `controller?` + `onClose` 回调关闭弹窗
+  controller?: CustomDialogController;
   title: string = '';
   onConfirm: () => void = () => {};
   onCancel: () => void = () => {};
+  onClose: () => void = () => {};   // ⚠️ 用回调关闭，避免依赖框架注入的 controller
 
   build() {
     Column() {
       Text(this.title).fontSize(16).padding(16)
       Row() {
-        Button('取消').onClick(() => { this.controller.close(); this.onCancel(); })
-        Button('确定').onClick(() => { this.controller.close(); this.onConfirm(); })
+        Button('取消').onClick(() => { this.onClose(); this.onCancel(); })
+        Button('确定').onClick(() => { this.onClose(); this.onConfirm(); })
       }
     }
     .backgroundColor(Color.White).borderRadius(14)
@@ -579,11 +585,15 @@ struct MyActionDialog {
 
 // 2. 在页面中打开
 showMyDialog(data: MyData): void {
-  const ctrl = new CustomDialogController({
+  // ⚠️ 必须显式类型注解！const ctrl = new ... 会推断为 any → 报 arkts-no-any-unknown
+  const ctrl: CustomDialogController = new CustomDialogController({
     builder: MyActionDialog({
       title: data.name,
       onConfirm: () => { /* 确认逻辑 */ },
       onCancel: () => { /* 取消逻辑 */ },
+      // ⚠️ 不能传 controller: ctrl（TDZ 错误 "used before its declaration"）
+      // ⚠️ 箭头函数必须用 {} 函数体，不能用表达式 () => expr（arkts-no-implicit-return-types）
+      onClose: () => { ctrl.close(); },
     }),
     alignment: DialogAlignment.Bottom,
     customStyle: true,       // 必须！关闭系统默认样式
@@ -595,12 +605,24 @@ showMyDialog(data: MyData): void {
 ```
 
 ### 关键要点
-- `@CustomDialog` 装饰的结构体**必须**有 `controller: CustomDialogController` 成员
-- **⚠️ controller 不能自引用初始化**：只声明 `controller: CustomDialogController`（无默认值），框架自动注入实例。用 `= new CustomDialogController({ builder: 自身 })` 自引用构造会导致 undefined
+- `@CustomDialog` 装饰的结构体**必须**有 `CustomDialogController` 类型成员
+- **⚠️ controller 声明必须用可选语法 `controller?: CustomDialogController`**（新版编译器不再接受无默认值声明）
+- **⚠️ 关闭弹窗用 `onClose` 回调**，不要在 builder 中传 `controller: ctrl`（TDZ 报错），也不要依赖 `this.controller?.close()`
+- **⚠️ `const ctrl = new CustomDialogController(...)` 必须加显式类型注解 `ctrl: CustomDialogController`**，否则推断为 any 触发编译错误
+- **⚠️ 箭头函数在 builder 参数中需用函数体 `{}` 语法**，如 `onClose: () => { ctrl.close(); }` 而非 `onClose: () => ctrl.close()`
 - 父组件创建 `CustomDialogController` 并传 builder 参数，调用 `.open()` 打开弹窗
-- 弹窗内部用 `this.controller.close()` 关闭自身
 - `customStyle: true` 关闭系统默认圆角/背景，完全由 build() 控制样式
 - `alignment: DialogAlignment.Bottom` 实现底部弹出效果
+
+### 常见编译错误速查
+
+| 错误信息 | 原因 | 解决 |
+|---------|------|------|
+| `runtime-independent default value should be set for it` | `controller: CustomDialogController;` 无默认值 | 改为 `controller?: CustomDialogController;` |
+| `must contain a property of the CustomDialogController type` | 缺少 controller 属性 | 必须保留 `controller?: CustomDialogController;` |
+| `used before its declaration` | builder 中 `controller: ctrl` 引用了正在声明的变量 | 改用 `onClose: () => { ctrl.close(); }` 回调 |
+| `Use explicit types instead of "any"` | `const ctrl = new ...` 无类型注解 | 加 `const ctrl: CustomDialogController = ...` |
+| `Function return type inference is limited` | 箭头函数用表达式 `() => expr` | 改为函数体 `() => { ... }` |
 
 ### 官方参考
 - 对话框概述：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-use-dialogs
@@ -618,3 +640,5 @@ showMyDialog(data: MyData): void {
 | 1.2.0 | — | 增加 Pillar 数据模型、Canvas 统一缩放、逆缩放字体等 |
 | 1.3.0 | 2026-06-12 | **正确弹窗模式**：ActionSheet 样式陷阱文档化 + CustomDialog 标准模式。过时的 `AlertDialog.show()` 示例更新为 `getUIContext().showAlertDialog()`。补充弹窗选用指南和官方文档入口。 |
 | 1.3.1 | 2026-06-12 | **⚠️ 修正 CustomDialog controller 自引用 bug**：`controller: CustomDialogController = new CustomDialogController({ builder: 自身 })` 导致 undefined。正确做法是只声明类型 `controller: CustomDialogController`（无默认值），框架自动注入实例。 |
+| 1.4.0 | 2026-06-12 | **controller 改为可选声明**（`controller?: CustomDialogController` + `?.close()`），解决新版 ArkTS 编译器 "If a component attribute supports local initialization, a valid, runtime-independent default value should be set for it" 编译错误。 |
+| 1.5.0 | 2026-06-12 | **CustomDialog 关闭改为 onClose 回调模式**：解决 `controller: ctrl` TDZ 错误、`const ctrl` 需显式类型注解避免 any 推断、箭头函数需用 `{}` 函数体语法。新增编译错误速查表。 |

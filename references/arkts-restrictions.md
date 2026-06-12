@@ -524,7 +524,7 @@ const type: OpeningType = (this.openingType === 0) ? 'door' : 'window'
 
 ---
 
-## 13. 漏导类型 — Cannot find name
+## 15. 漏导类型 — Cannot find name
 
 **触发条件**：在文件中使用了某个类型（如 `OpeningType`）但没有在 `import type { ... }` 中显式导入。
 
@@ -549,7 +549,7 @@ import type { DesignState, Wall, OpeningType } from '../core/DesignTypes'
 
 ---
 
-## 14. 枚举 vs 联合类型
+## 16. 枚举 vs 联合类型
 
 **推荐**：用 `type` 联合类型替代 `enum`，ArkTS 对 enum 支持有限。
 
@@ -587,7 +587,9 @@ type DoorDirection = 'left' | 'right'
 | `import { Canvas } from '@kit.ArkUI'` | 不 import，组件内直接使用 |
 | `AlertDialog.show({...})` / `ActionSheet.show({...})` | `this.getUIContext().showAlertDialog({...})` / `this.getUIContext().showActionSheet({...})` |
 | 给 ActionSheet 加 `backgroundColor` 颜色异常 | 同时设置 `backgroundBlurStyle: BlurStyle.NONE`，或改用 `@CustomDialog` |
-| 需要美观自定义弹窗 | `@CustomDialog` + `CustomDialogController`，设 `customStyle: true` |\n| `@CustomDialog` 中 `controller: CustomDialogController = new ...` 自引用初始化 | ⚠️ **会导致 undefined**！只声明 `controller: CustomDialogController`（无默认值），框架自动注入 |
+| 需要美观自定义弹窗 | `@CustomDialog` + `CustomDialogController`，设 `customStyle: true` |\n| `@CustomDialog` 中 `controller: CustomDialogController = new ...` 自引用初始化 | ⚠️ **会导致 undefined**！改为 `controller?:` + `onClose` 回调关闭弹窗 |
+| `const ctrl = new ...` 无类型注解 | 推断为 any → 加 `const ctrl: CustomDialogController = ...` |
+| builder 内箭头函数用表达式 `() => expr` | 返回类型推断受限 → 改为 `{ }` 函数体 |
 
 ---
 
@@ -598,21 +600,23 @@ type DoorDirection = 'left' | 'right'
 - 即使修复模糊冲突，样式定制能力仍有限
 - **推荐：需要自定义样式的操作菜单 → 使用 `@CustomDialog`**
 
-**CustomDialog 标准写法：**
+**CustomDialog 标准写法（v1.5 最终版）：**
+
 ```typescript
 @CustomDialog
 struct MyActionDialog {
-  // ⚠️ controller 不能自引用初始化！只声明类型，框架自动注入实例
-  // 错误写法：controller: CustomDialogController = new CustomDialogController({ builder: MyActionDialog({}) })
-  // 会导致 controller 为 undefined，close() 报 TypeError: Cannot read property close of undefined
-  controller: CustomDialogController;
+  // ⚠️ controller 可选声明（满足编译器两个约束）
+  // 约束1：必须有 CustomDialogController 类型属性
+  // 约束2：属性必须有运行时无关默认值 → 用 ? 语法
+  controller?: CustomDialogController;
   title: string = '';
   onAction: () => void = () => {};
+  onClose: () => void = () => {};   // ⚠️ 关闭弹窗用回调，不用 this.controller
 
   build() {
     Column() {
       Text(this.title).fontSize(16)
-      Button('操作').onClick(() => { this.controller.close(); this.onAction(); })
+      Button('操作').onClick(() => { this.onClose(); this.onAction(); })
     }
     .backgroundColor(Color.White).borderRadius(14)
   }
@@ -620,10 +624,14 @@ struct MyActionDialog {
 
 // 父组件中打开
 showDialog(): void {
-  const ctrl = new CustomDialogController({
+  // ⚠️ 必须显式类型注解，否则推断为 any
+  const ctrl: CustomDialogController = new CustomDialogController({
     builder: MyActionDialog({
       title: '标题',
       onAction: () => { /* 逻辑 */ },
+      // ⚠️ 不能传 controller: ctrl（TDZ 错误）
+      // ⚠️ 箭头函数必须用 {} 函数体
+      onClose: () => { ctrl.close(); },
     }),
     alignment: DialogAlignment.Bottom,
     customStyle: true,
@@ -634,9 +642,28 @@ showDialog(): void {
 }
 ```
 
+### 为什么必须用 `controller?:` + `onClose` 回调？
+
+新版 ArkTS 编译器有多个互斥约束：
+
+| 写法 | 结果 |
+|------|------|
+| `controller: CustomDialogController;` 无默认值 | ❌ "runtime-independent default value should be set" |
+| `controller = new ...` 自引用 | ❌ 运行时 undefined，close() TypeError |
+| 去掉 `controller` 属性 | ❌ "@CustomDialog must contain a property of the CustomDialogController type" |
+| **`controller?:` + `onClose` 回调** | ✅ 通过编译 + 运行时正常 |
+
+### 另外两个编译陷阱
+
+| 写法 | 错误 | 正确写法 |
+|------|------|---------|
+| `const ctrl = new ...` 无类型 | 推断为 any → `arkts-no-any-unknown` | **`const ctrl: CustomDialogController = ...`** |
+| `onClose: () => ctrl.close()` 表达式箭头函数 | `arkts-no-implicit-return-types` | **`onClose: () => { ctrl.close(); }`** 函数体 |
+| builder 中传 `controller: ctrl` | TDZ "used before its declaration" | 不传，改用 `onClose` 回调 |
+
 ---
 
-## 15. CustomComponent 属性名冲突 — 不能用内置方法名做变量名
+## 18. CustomComponent 属性名冲突 — 不能用内置方法名做变量名
 
 **触发条件**：在 `@Component` struct 中声明 `private`/`@State` 变量时，使用了 ArkUI `CustomComponent` 基类的内置属性方法名。
 
@@ -669,7 +696,7 @@ struct Index {
 
 ---
 
-## 16. AlertDialog.show / ActionSheet.show 已废弃 — 改用 UIContext 方法
+## 19. AlertDialog.show / ActionSheet.show 已废弃 — 改用 UIContext 方法
 
 **触发条件**：使用 `AlertDialog.show()` 或 `ActionSheet.show()` 静态方法弹出对话框。
 
@@ -733,6 +760,11 @@ this.getUIContext().showActionSheet({
 | 10605029 | `arkts-no-props-by-index` | 禁止索引访问 → if/switch 展开 |
 | 10311006 | `is not exported from Kit` | 导入不存在 → 检查 API 来源 |
 | 10505001 | `; expected` / `Declaration expected` | 语法糖不支持 → 可能是箭头函数/Builder 调用方式 |
+| — | `a valid, runtime-independent default value should be set for it` | CustomDialog controller 缺少默认值 → 改为 `controller?: CustomDialogController` |
+| — | `@CustomDialog must contain a property of the CustomDialogController type` | 缺少 controller 属性 → 必须声明 `controller?: CustomDialogController` |
+| 10605008 | `Use explicit types instead of "any", "unknown"` | 变量无类型注解推断为 any → 加显式类型如 `const ctrl: CustomDialogController = ...` |
+| 10605090 | `Function return type inference is limited` | 箭头函数用表达式语法 → 改为 `{ }` 函数体：`() => { expr; }` |
+| — | `Block-scoped variable 'ctrl' used before its declaration` | builder 中传 `controller: ctrl`（TDZ）→ 改用 `onClose` 回调 |
 | — | `Cannot find name 'X'` | 漏导类型 → 在 import 中显式添加 |
 
 ---

@@ -93,9 +93,11 @@ ArkTS 基于 TypeScript 扩展，是 HarmonyOS NEXT 的主要开发语言。**Ar
 | 禁止无类型对象 | `const x = { a: 1 }` | 加类型注解 `const x: T = { a: 1 }` |
 | 禁止 spread | `{ ...obj }` / `[...arr]` | 逐字段拷贝 / clone 函数 |
 | 禁止 any/unknown | `let x: any` | 明确 interface 类型 |
+| 禁止 `as` 断言 | `'val' as Type` | `const x: Type = 'val'` |
 | 禁止索引访问 | `obj[key]` | if/switch 展开 |
 | 禁止 Record<K,V> | `Record<string, T>` | 数组 + 查找函数 |
 | 禁止可选属性 | `field?: Type` | 必填 + 默认值 |
+| 必须显式导入类型 | 漏导 type → `Cannot find name` | import 中加全所有类型 |
 
 ### 基本语法要点
 

@@ -379,7 +379,52 @@ function cloneOpenings(list: Opening[]): Opening[] {
 
 ---
 
-## 12. 枚举 vs 联合类型
+## 12. arkts-no-any-unknown — `as` 类型断言触发 (10605008)
+
+**触发条件**：在变量赋值时使用 `as Type` 类型断言（即使目标类型是明确定义的联合类型）。
+
+ArkTS 编译器认为 `as` 断言引入了不安全的类型转换，等价于 `any` 赋值。
+
+**错误写法**：
+```typescript
+const type = (this.openingType === 0) ? 'door' as OpeningType : 'window' as OpeningType
+```
+
+**正确写法**：用显式类型注解代替 `as` 断言。
+```typescript
+const type: OpeningType = (this.openingType === 0) ? 'door' : 'window'
+```
+
+> 💡 **原则**：ArkTS 中永远不要用 `as Type`——全部改为 `const x: Type = ...` 或 `const x: Type[] = [...]`。类型注解要放在变量声明侧，不要放在值表达式中。
+
+---
+
+## 13. 漏导类型 — Cannot find name
+
+**触发条件**：在文件中使用了某个类型（如 `OpeningType`）但没有在 `import type { ... }` 中显式导入。
+
+**错误写法**：
+```typescript
+// DesignTypes.ets 导出了 OpeningType
+export type OpeningType = 'door' | 'window'
+
+// Index.ets 漏导了 OpeningType
+import type { DesignState, Wall } from '../core/DesignTypes'
+
+// 但代码中使用了
+const type: OpeningType = 'door'  // ❌ Cannot find name 'OpeningType'
+```
+
+**正确写法**：在 import 列表中显式加上所有用到的类型名。
+```typescript
+import type { DesignState, Wall, OpeningType } from '../core/DesignTypes'
+```
+
+> 💡 **经验法则**：每次写完代码后搜索所有类型引用，确认它们都在 import 列表中。ArkTS 不会像 TS 那样自动补全或推断跨文件的类型引用。
+
+---
+
+## 14. 枚举 vs 联合类型
 
 **推荐**：用 `type` 联合类型替代 `enum`，ArkTS 对 enum 支持有限。
 
@@ -405,6 +450,7 @@ type DoorDirection = 'left' | 'right'
 | `{ ...obj }` / `[...arr]` | 逐字段拷贝 / clone 函数 / push 循环 |
 | `obj[key]` | if/switch 展开 / getter-setter 函数 |
 | `any` / `unknown` | 明确的 interface/class 类型 |
+| `'val' as Type`（as 断言） | `const x: Type = 'val'` 类型注解 |
 | `field?: Type`（可选） | 必填 `field: Type` + 默认值 |
 | `JSON.parse(JSON.stringify(x))` | 手写 `cloneXxx()` 函数 |
 | `array.filter(fn)` / `array.map(fn)` | for 循环 |
@@ -420,10 +466,11 @@ type DoorDirection = 'left' | 'right'
 | 10605040 | `arkts-no-obj-literals-as-types` | 禁止对象字面量做类型 → 定义 interface |
 | 10605038 | `arkts-no-untyped-obj-literals` | 禁止无类型对象字面量 → 加类型注解 |
 | 10605099 | `arkts-no-spread` | 禁止 spread → 逐字段拷贝 |
-| 10605008 | `arkts-no-any-unknown` | 禁止 any/unknown → 明确类型 |
+| 10605008 | `arkts-no-any-unknown` | 禁止 any/unknown（含 `as` 断言） → 明确类型 + 类型注解 |
 | 10605029 | `arkts-no-props-by-index` | 禁止索引访问 → if/switch 展开 |
 | 10311006 | `is not exported from Kit` | 导入不存在 → 检查 API 来源 |
 | 10505001 | `; expected` / `Declaration expected` | 语法糖不支持 → 可能是箭头函数/Builder 调用方式 |
+| — | `Cannot find name 'X'` | 漏导类型 → 在 import 中显式添加 |
 
 ---
 

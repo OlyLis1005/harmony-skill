@@ -1,7 +1,7 @@
 ---
 name: harmony-skill
 description: 鸿蒙（HarmonyOS NEXT）应用开发技能包。当用户需要开发鸿蒙应用、编写 ArkTS/ArkUI 代码、创建鸿蒙工程、调试鸿蒙应用、使用 Electron 框架开发鸿蒙 PC 应用、将现有 Electron 项目迁移到鸿蒙、或咨询鸿蒙开发相关问题时触发此技能。覆盖环境搭建、工程结构、ArkTS 语法、ArkUI 声明式 UI、Electron for HarmonyOS、应用模型（Stage 模型）、路由导航、网络请求、数据持久化、应用签名与发布等全流程开发场景。以华为官方文档为准。
-version: 1.1.0
+version: 1.2.0
 agent_created: true
 ---
 
@@ -13,6 +13,8 @@ agent_created: true
 |------|------|------|
 | 1.0.0 | 2026-06-10 | 初始版本：ArkTS 限制速查、ArkUI 装饰器、工程结构、Electron 鸕蒙支持 |
 | 1.0.1 | 2026-06-11 | 新增第 12-13 条：@State/@Observed/@ObjectLink 深层观察机制 |
+| 1.1.0 | 2026-06-12 | 新增第 14-15 条：`as` 断言禁止(10605008)、CustomComponent 属性名冲突；速查表+翻译表新增对应行 |
+| 1.2.0 | 2026-06-12 | 新增第 16 条：AlertDialog.show/ActionSheet.show 废弃→UIContext 方法；速查表新增对应行 |
 | 1.1.0 | 2026-06-12 | 新增第 14-15 条：`as` 断言禁止(10605008)、CustomComponent 属性名冲突；速查表+翻译表新增对应行 |
 
 ## 概述
@@ -109,6 +111,7 @@ ArkTS 基于 TypeScript 扩展，是 HarmonyOS NEXT 的主要开发语言。**Ar
 | 嵌套对象属性变化不刷新 | `this.state.room.width = x` | `@Observed` class + 子组件 `@ObjectLink` |
 | interface 需深层观察 | `interface X { ... }` 不触发刷新 | 改为 `@Observed class X` + constructor |
 | 组件属性名与基类冲突 | `private scale: number = 1` | 改名 `drawScale` 等不冲突词 |
+| AlertDialog/ActionSheet 废弃 | `AlertDialog.show()` / `ActionSheet.show()` | `this.getUIContext().showAlertDialog()` / `.showActionSheet()` |
 
 ### 基本语法要点
 

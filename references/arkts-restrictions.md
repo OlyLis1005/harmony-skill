@@ -581,6 +581,7 @@ type DoorDirection = 'left' | 'right'
 | `interface` 需要深层观察 | 改为 `@Observed class` + constructor |
 | `JSON.parse(JSON.stringify(x))` | 手写 `cloneXxx()` 函数 |
 | `private scale = 1`（与基类冲突） | 改名 `drawScale` 等不冲突的词 |
+| `AlertDialog.show()` / `ActionSheet.show()` | `this.getUIContext().showAlertDialog()` / `.showActionSheet()` |
 | `array.filter(fn)` / `array.map(fn)` | for 循环 |
 | `enum X { ... }` | `type X = 'a' \| 'b'` |
 | `import { Canvas } from '@kit.ArkUI'` | 不 import，组件内直接使用 |
@@ -617,6 +618,59 @@ struct Index {
 ```
 
 > 💡 **已知冲突词列表**：scale, opacity, rotate, translate, width, height, margin, padding, border, offset, position, flex, align, visibility, enabled, focus, gesture, response, transition, animation, shadow, blur, grayscale, brightness, saturate, invert, sepia, hueRotate, clip, mask, overlay, zIndex, id, key, grid, gridSpan, gridOffset, useSize, constraintSize, aspectRatio, decoration, backgroundColor, backgroundImage, backgroundBlur, clipShape, shape, ripple, hover, pressed, selected, checked, style, draggable, drag, drop, bind, on, gestureGroup, priority, parallel, sequence, custom, hitTest, touch, mouse, key, focus, hover, appear, disappear, area, size, layout, draw, render, measure, align, alignSelf, alignSelf, flexGrow, flexShrink, flexBasis, display, visibility, aspectRatio
+
+---
+
+## 16. AlertDialog.show / ActionSheet.show 已废弃 — 改用 UIContext 方法
+
+**触发条件**：使用 `AlertDialog.show()` 或 `ActionSheet.show()` 静态方法弹出对话框。
+
+从 HarmonyOS Next API 12+ 起，这些静态方法被标记为 deprecated（废弃），编译时会输出警告：
+
+```
+ArkTS:WARN 'show' has been deprecated.
+```
+
+**废弃写法**：
+```typescript
+AlertDialog.show({
+  title: '确认',
+  message: '确定吗？',
+  primaryButton: { value: '取消', action: () => {} },
+  secondaryButton: { value: '确认', action: () => { /* ... */ } }
+});
+
+ActionSheet.show({
+  title: '操作',
+  sheets: [ { title: '选项1', action: () => {} } ],
+  confirm: { value: '取消', action: () => {} }
+});
+```
+
+**正确写法**：通过 `this.getUIContext()` 获取 UIContext 实例，再调用对应方法：
+```typescript
+// AlertDialog → showAlertDialog，buttons 数组替代 primaryButton/secondaryButton
+this.getUIContext().showAlertDialog({
+  title: '确认',
+  message: '确定吗？',
+  buttons: [
+    { value: '取消', action: () => {} },
+    { value: '确认', action: () => { /* ... */ } }
+  ]
+});
+
+// ActionSheet → showActionSheet，参数结构不变
+this.getUIContext().showActionSheet({
+  title: '操作',
+  sheets: [ { title: '选项1', action: () => {} } ],
+  confirm: { value: '取消', action: () => {} }
+});
+```
+
+> ⚠️ **关键差异**：
+> - `showAlertDialog` 的按钮配置从 `primaryButton/secondaryButton` 改为 `buttons[]` 数组
+> - `showActionSheet` 的参数结构与旧 API 一致，只是调用方式变了
+> - 必须在组件内部调用 `this.getUIContext()`，不能在异步回调深处或后台任务中使用
 
 ---
 

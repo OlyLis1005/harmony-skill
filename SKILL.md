@@ -98,6 +98,8 @@ ArkTS 基于 TypeScript 扩展，是 HarmonyOS NEXT 的主要开发语言。**Ar
 | 禁止 Record<K,V> | `Record<string, T>` | 数组 + 查找函数 |
 | 禁止可选属性 | `field?: Type` | 必填 + 默认值 |
 | 必须显式导入类型 | 漏导 type → `Cannot find name` | import 中加全所有类型 |
+| @State 数组不会自动刷新 | `.push()` / 改元素字段 | 整体替换为新数组 `this.arr = newArr` |
+| @State 对象深层字段 | `this.obj.field = x` | 整体替换对象 `this.obj = newObj` |
 
 ### 基本语法要点
 

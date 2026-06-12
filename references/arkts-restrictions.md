@@ -379,7 +379,75 @@ function cloneOpenings(list: Opening[]): Opening[] {
 
 ---
 
-## 12. arkts-no-any-unknown — `as` 类型断言触发 (10605008)
+## 12. @State 数组/对象更新规则 — UI 不刷新
+
+**触发条件**：对 `@State` 数组调用 `.push()` / `.splice()` / 直接修改元素字段后，界面没有重新渲染。
+
+**根本原因**：ArkTS 的 `@State` 对数组内部变化（push、splice、直接修改元素属性）的响应式追踪是**浅层的**。只有整体替换数组引用，才能可靠地触发 UI 刷新。
+
+**错误写法（UI 可能不刷新）**：
+```typescript
+// ❌ push 不触发刷新
+this.state.furniture.push(newF)
+
+// ❌ 直接修改元素字段，数组引用未变
+this.state.furniture[i].x = newX
+```
+
+**正确写法**：每次更新都整体替换为新数组。
+```typescript
+// ✅ 整体替换数组
+const newList: Furniture[] = []
+for (let i = 0; i < this.state.furniture.length; i++) {
+  newList.push(this.state.furniture[i])
+}
+newList.push(newF)
+this.state.furniture = newList   // 新引用，触发刷新
+
+// ✅ 修改元素后也要替换
+const newList: Furniture[] = []
+for (let i = 0; i < this.state.furniture.length; i++) {
+  const f = this.state.furniture[i]
+  if (f.id === targetId) {
+    f.x = newX   // 修改字段
+  }
+  newList.push(f)
+}
+this.state.furniture = newList   // 触发刷新
+```
+
+**删除元素**：
+```typescript
+const filtered: Furniture[] = []
+for (let i = 0; i < this.state.furniture.length; i++) {
+  if (this.state.furniture[i].id !== deleteId) filtered.push(this.state.furniture[i])
+}
+this.state.furniture = filtered
+```
+
+> 💡 **口诀**：`@State` 数组改了啥，最后一定赋新数组。用 `filter/push` 辅助建新数组，最后 `this.xxx = newArr` 收尾。
+
+---
+
+## 13. @State 对象嵌套更新 — 替换整个对象
+
+**触发条件**：直接修改 `@State` 对象的深层属性（如 `this.state.room.width = 400`），UI 有时不刷新。
+
+**正确写法**：整体替换对象。
+```typescript
+// ❌ 直接改深层字段，可能不刷新
+this.state.room.width = 400
+
+// ✅ 整体替换对象
+const newRoom: Room = { width: 400, length: this.state.room.length, corners: this.state.room.corners }
+this.state.room = newRoom
+```
+
+> 注意：如果外层 `this.state` 本身也是 `@State`，而 `room` 是其字段，则修改 `this.state.room = newRoom` 才可靠触发刷新；若只是 `this.state.room.width = 400` 则可能不刷新，取决于 ArkTS 版本。
+
+---
+
+## 14. arkts-no-any-unknown — `as` 类型断言触发 (10605008)
 
 **触发条件**：在变量赋值时使用 `as Type` 类型断言（即使目标类型是明确定义的联合类型）。
 

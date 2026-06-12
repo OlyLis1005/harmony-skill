@@ -5,13 +5,13 @@ version: 1.2.0
 agent_created: true
 ---
 
-# 鸕蒙应用开发
+# 鸿蒙应用开发
 
 ## 版本记录
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 1.0.0 | 2026-06-10 | 初始版本：ArkTS 限制速查、ArkUI 装饰器、工程结构、Electron 鸕蒙支持 |
+| 1.0.0 | 2026-06-10 | 初始版本：ArkTS 限制速查、ArkUI 装饰器、工程结构、Electron 鸿蒙支持 |
 | 1.0.1 | 2026-06-11 | 新增第 12-13 条：@State/@Observed/@ObjectLink 深层观察机制 |
 | 1.1.0 | 2026-06-12 | 新增第 14-15 条：`as` 断言禁止(10605008)、CustomComponent 属性名冲突；速查表+翻译表新增对应行 |
 | 1.2.0 | 2026-06-12 | 新增第 16 条：AlertDialog.show/ActionSheet.show 废弃→UIContext 方法；速查表新增对应行 |

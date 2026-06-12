@@ -81,7 +81,21 @@ MyApplication/
 
 ## ArkTS 语言核心
 
-ArkTS 基于 TypeScript 扩展，是 HarmonyOS NEXT 的主要开发语言。
+ArkTS 基于 TypeScript 扩展，是 HarmonyOS NEXT 的主要开发语言。**ArkTS 是 TypeScript 的严格子集**，禁止了大量 TS/JS 常见写法。
+
+> ⚠️ **TS→ArkTS 翻译必读**：ArkTS 编译器有多项严格限制，直接复制 TS 代码大概率编译失败。详见 `references/arkts-restrictions.md`。
+
+### 核心限制速查（最常见的 7 个坑）
+
+| 限制 | TS 写法 | ArkTS 替代 |
+|------|---------|-----------|
+| 禁止对象字面量类型 | `{ x: number }` 做类型 | 先定义 `interface` |
+| 禁止无类型对象 | `const x = { a: 1 }` | 加类型注解 `const x: T = { a: 1 }` |
+| 禁止 spread | `{ ...obj }` / `[...arr]` | 逐字段拷贝 / clone 函数 |
+| 禁止 any/unknown | `let x: any` | 明确 interface 类型 |
+| 禁止索引访问 | `obj[key]` | if/switch 展开 |
+| 禁止 Record<K,V> | `Record<string, T>` | 数组 + 查找函数 |
+| 禁止可选属性 | `field?: Type` | 必填 + 默认值 |
 
 ### 基本语法要点
 
@@ -89,6 +103,9 @@ ArkTS 基于 TypeScript 扩展，是 HarmonyOS NEXT 的主要开发语言。
 - 不支持 any/unknown，需显式类型注解
 - 状态变量必须类型声明，禁止省略
 - 使用 `@Observed` 和 `@ObjectLink` 管理嵌套对象
+- **禁止内联对象字面量做类型**，必须先定义 interface/class
+- **禁止 spread 操作符**，必须逐字段拷贝或写 clone 函数
+- **禁止索引访问** (`obj[key]`)，必须用 if/switch 或 getter/setter
 
 ### 装饰器速查
 
@@ -472,13 +489,15 @@ ohos_hap/
 7. **调用系统能力** → 查阅「常用系统能力」模块表，必要时 WebFetch 官方 API 文档
 8. **使用 Electron 开发鸿蒙 PC 应用** → 参照「Electron for HarmonyOS」+ `references/electron-harmonyos.md`
 9. **迁移现有 Electron 项目到鸿蒙** → 参照 `references/electron-harmonyos.md` 中「项目迁移指南」
-10. **应用签名/上架** → 参照「应用签名与发布」
+10. **TS/JS 代码翻译为 ArkTS** → 参照 `references/arkts-restrictions.md`（编译器错误速查表）
+11. **应用签名/上架** → 参照「应用签名与发布」
 
 ## 参考文档
 
 详细参考材料见 `references/` 目录：
 
 - `references/arkts-guide.md`：ArkTS 语言详细语法参考
+- `references/arkts-restrictions.md`：**ArkTS 编译器严格限制与错误对照表**（TS→ArkTS 翻译必读）
 - `references/arkui-components.md`：ArkUI 组件属性和事件完整参考
 - `references/project-templates.md`：常用工程模板和代码片段
 - `references/electron-harmonyos.md`：Electron for HarmonyOS 完整开发指南（环境搭建、项目迁移、API 适配、性能优化）

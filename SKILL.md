@@ -1,7 +1,7 @@
 ---
 name: harmony-skill
 description: 鸿蒙（HarmonyOS NEXT）应用开发技能包。当用户需要开发鸿蒙应用、编写 ArkTS/ArkUI 代码、创建鸿蒙工程、调试鸿蒙应用、使用 Electron 框架开发鸿蒙 PC 应用、将现有 Electron 项目迁移到鸿蒙、或咨询鸿蒙开发相关问题时触发此技能。覆盖环境搭建、工程结构、ArkTS 语法、ArkUI 声明式 UI、Electron for HarmonyOS、应用模型（Stage 模型）、路由导航、网络请求、数据持久化、应用签名与发布等全流程开发场景。以华为官方文档为准。
-version: 1.2.0
+version: 1.3.1
 agent_created: true
 ---
 
@@ -211,8 +211,16 @@ List() {
   }, (item: DataModel) => item.id.toString())
 }
 
-// 自定义对话框
-AlertDialog.show({ title: '提示', message: '确认操作？' })
+// 对话框（推荐 CustomDialog 自定义，或 AlertDialog 简单确认）
+// ⚠️ AlertDialog.show() 已废弃，请使用 this.getUIContext().showAlertDialog()
+this.getUIContext().showAlertDialog({
+  title: '提示',
+  message: '确认操作？',
+  buttons: [
+    { value: '取消', action: () => {} },
+    { value: '确认', action: () => {} }
+  ]
+})
 ```
 
 ### 渲染控制
@@ -519,3 +527,94 @@ ohos_hap/
 - `references/electron-harmonyos.md`：Electron for HarmonyOS 完整开发指南（环境搭建、项目迁移、API 适配、性能优化）
 
 当需要 API 细节或组件属性时，优先 WebFetch 官方文档获取最新内容，references 中的内容作为辅助。
+
+## 弹窗最佳实践
+
+### 三种弹窗选用指南
+
+| 场景 | 推荐组件 | 原因 |
+|------|---------|------|
+| 简单确认/提示（是/否） | `AlertDialog` via `getUIContext().showAlertDialog()` | 系统样式，API 简单 |
+| 列表选择（多选项） | `ActionSheet` via `getUIContext().showActionSheet()` | 原生底部列表，`sheets` 数组即可 |
+| **需要自定义样式** | `@CustomDialog` + `CustomDialogController` | 完全控制布局和样式 |
+| 轻量提示 | `promptAction.showToast()` | 非模态，自动消失 |
+
+### ⚠️ ActionSheet 样式陷阱
+
+`showActionSheet` 默认 `backgroundBlurStyle: BlurStyle.COMPONENT_ULTRA_THICK`，会与 `backgroundColor` 叠加产生异常效果。如需自定义背景色，必须同时设置：
+```typescript
+backgroundBlurStyle: BlurStyle.NONE,
+backgroundColor: '#faf8f2',
+```
+
+**结论：需要真正自定义样式的弹窗，强烈推荐使用 `@CustomDialog`。**
+
+### 📘 CustomDialog 标准模式
+
+```typescript
+// 1. 定义自定义弹窗
+@CustomDialog
+struct MyActionDialog {
+  // ⚠️ controller 不能用默认值初始化！
+  // 错误写法：controller: CustomDialogController = new CustomDialogController({ builder: MyActionDialog({}) })
+  // 自引用构造会导致 controller 为 undefined，close() 报 TypeError
+  // 正确写法：只声明类型，由框架自动注入实例
+  controller: CustomDialogController;
+  title: string = '';
+  onConfirm: () => void = () => {};
+  onCancel: () => void = () => {};
+
+  build() {
+    Column() {
+      Text(this.title).fontSize(16).padding(16)
+      Row() {
+        Button('取消').onClick(() => { this.controller.close(); this.onCancel(); })
+        Button('确定').onClick(() => { this.controller.close(); this.onConfirm(); })
+      }
+    }
+    .backgroundColor(Color.White).borderRadius(14)
+    .padding(16)
+  }
+}
+
+// 2. 在页面中打开
+showMyDialog(data: MyData): void {
+  const ctrl = new CustomDialogController({
+    builder: MyActionDialog({
+      title: data.name,
+      onConfirm: () => { /* 确认逻辑 */ },
+      onCancel: () => { /* 取消逻辑 */ },
+    }),
+    alignment: DialogAlignment.Bottom,
+    customStyle: true,       // 必须！关闭系统默认样式
+    autoCancel: true,
+    maskColor: 'rgba(0,0,0,0.4)',
+  });
+  ctrl.open();
+}
+```
+
+### 关键要点
+- `@CustomDialog` 装饰的结构体**必须**有 `controller: CustomDialogController` 成员
+- **⚠️ controller 不能自引用初始化**：只声明 `controller: CustomDialogController`（无默认值），框架自动注入实例。用 `= new CustomDialogController({ builder: 自身 })` 自引用构造会导致 undefined
+- 父组件创建 `CustomDialogController` 并传 builder 参数，调用 `.open()` 打开弹窗
+- 弹窗内部用 `this.controller.close()` 关闭自身
+- `customStyle: true` 关闭系统默认圆角/背景，完全由 build() 控制样式
+- `alignment: DialogAlignment.Bottom` 实现底部弹出效果
+
+### 官方参考
+- 对话框概述：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-use-dialogs
+- 自定义弹窗：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-common-components-custom-dialog
+- 样式修复指南：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-fixes-style-dialog
+- ActionSheet API：https://developer.huawei.com/consumer/cn/doc/harmonyos-references/ts-methods-action-sheet
+
+## 版本历史
+
+| 版本 | 日期 | 变更内容 |
+|------|------|---------|
+| 1.0.0 | — | 初始版本 |
+| 1.0.1 | — | 增加 CustomComponent 属性名冲突规则（`scale` → `drawScale`）|
+| 1.1.0 | — | 增加 AlertDialog/ActionSheet 废弃 API → UIContext 方法迁移规则 |
+| 1.2.0 | — | 增加 Pillar 数据模型、Canvas 统一缩放、逆缩放字体等 |
+| 1.3.0 | 2026-06-12 | **正确弹窗模式**：ActionSheet 样式陷阱文档化 + CustomDialog 标准模式。过时的 `AlertDialog.show()` 示例更新为 `getUIContext().showAlertDialog()`。补充弹窗选用指南和官方文档入口。 |
+| 1.3.1 | 2026-06-12 | **⚠️ 修正 CustomDialog controller 自引用 bug**：`controller: CustomDialogController = new CustomDialogController({ builder: 自身 })` 导致 undefined。正确做法是只声明类型 `controller: CustomDialogController`（无默认值），框架自动注入实例。 |

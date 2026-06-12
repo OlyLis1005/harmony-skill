@@ -585,6 +585,54 @@ type DoorDirection = 'left' | 'right'
 | `array.filter(fn)` / `array.map(fn)` | for 循环 |
 | `enum X { ... }` | `type X = 'a' \| 'b'` |
 | `import { Canvas } from '@kit.ArkUI'` | 不 import，组件内直接使用 |
+| `AlertDialog.show({...})` / `ActionSheet.show({...})` | `this.getUIContext().showAlertDialog({...})` / `this.getUIContext().showActionSheet({...})` |
+| 给 ActionSheet 加 `backgroundColor` 颜色异常 | 同时设置 `backgroundBlurStyle: BlurStyle.NONE`，或改用 `@CustomDialog` |
+| 需要美观自定义弹窗 | `@CustomDialog` + `CustomDialogController`，设 `customStyle: true` |\n| `@CustomDialog` 中 `controller: CustomDialogController = new ...` 自引用初始化 | ⚠️ **会导致 undefined**！只声明 `controller: CustomDialogController`（无默认值），框架自动注入 |
+
+---
+
+## 17. 弹窗选择决策
+
+**ActionSheet 局限性：**
+- 默认 `backgroundBlurStyle: BlurStyle.COMPONENT_ULTRA_THICK` 与 `backgroundColor` 叠加导致颜色异常
+- 即使修复模糊冲突，样式定制能力仍有限
+- **推荐：需要自定义样式的操作菜单 → 使用 `@CustomDialog`**
+
+**CustomDialog 标准写法：**
+```typescript
+@CustomDialog
+struct MyActionDialog {
+  // ⚠️ controller 不能自引用初始化！只声明类型，框架自动注入实例
+  // 错误写法：controller: CustomDialogController = new CustomDialogController({ builder: MyActionDialog({}) })
+  // 会导致 controller 为 undefined，close() 报 TypeError: Cannot read property close of undefined
+  controller: CustomDialogController;
+  title: string = '';
+  onAction: () => void = () => {};
+
+  build() {
+    Column() {
+      Text(this.title).fontSize(16)
+      Button('操作').onClick(() => { this.controller.close(); this.onAction(); })
+    }
+    .backgroundColor(Color.White).borderRadius(14)
+  }
+}
+
+// 父组件中打开
+showDialog(): void {
+  const ctrl = new CustomDialogController({
+    builder: MyActionDialog({
+      title: '标题',
+      onAction: () => { /* 逻辑 */ },
+    }),
+    alignment: DialogAlignment.Bottom,
+    customStyle: true,
+    autoCancel: true,
+    maskColor: 'rgba(0,0,0,0.4)',
+  });
+  ctrl.open();
+}
+```
 
 ---
 

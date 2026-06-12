@@ -379,71 +379,128 @@ function cloneOpenings(list: Opening[]): Opening[] {
 
 ---
 
-## 12. @State 数组/对象更新规则 — UI 不刷新
+## 12. @State 观察范围与 @Observed/@ObjectLink（核心！）
 
-**触发条件**：对 `@State` 数组调用 `.push()` / `.splice()` / 直接修改元素字段后，界面没有重新渲染。
+### @State 能观察什么
 
-**根本原因**：ArkTS 的 `@State` 对数组内部变化（push、splice、直接修改元素属性）的响应式追踪是**浅层的**。只有整体替换数组引用，才能可靠地触发 UI 刷新。
+| @State 变量类型 | 能观察 | 不能观察 |
+|----------------|--------|----------|
+| 基本类型 | 值变化 | — |
+| 对象（第一层） | 属性赋值 `this.obj = newObj` | 嵌套属性 `this.obj.field = x` |
+| 数组 | push / splice / shift / unshift / 整体赋值 | **数组项对象的属性变化** `this.arr[0].x = x` |
 
-**错误写法（UI 可能不刷新）**：
+**关键结论**：
+- ✅ `@State` 数组 **可以** 响应 `.push()` / `.splice()` 等数组方法
+- ❌ `@State` **不能** 响应嵌套对象的属性变化（如 `room.width = 400`、`furniture[0].x = 100`）
+
+### @Observed + @ObjectLink 解决嵌套对象属性变化
+
+**适用场景**：当 `@State` 对象的属性本身也是对象（嵌套对象），需要观察其内部属性变化时。
+
+**用法**：
+1. `@Observed` 装饰 **class**（不是 interface！）
+2. `@ObjectLink` 装饰 **子组件** 中的变量
+3. 父组件 `@State` 持有数组/对象，传递子项给子组件
+
 ```typescript
-// ❌ push 不触发刷新
-this.state.furniture.push(newF)
+// 1. @Observed 装饰类（必须是 class，不能是 interface）
+@Observed
+class Furniture {
+  id: number = 0
+  name: string = ''
+  x: number = 0
+  y: number = 0
+  // ... 其他字段
 
-// ❌ 直接修改元素字段，数组引用未变
-this.state.furniture[i].x = newX
-```
-
-**正确写法**：每次更新都整体替换为新数组。
-```typescript
-// ✅ 整体替换数组
-const newList: Furniture[] = []
-for (let i = 0; i < this.state.furniture.length; i++) {
-  newList.push(this.state.furniture[i])
-}
-newList.push(newF)
-this.state.furniture = newList   // 新引用，触发刷新
-
-// ✅ 修改元素后也要替换
-const newList: Furniture[] = []
-for (let i = 0; i < this.state.furniture.length; i++) {
-  const f = this.state.furniture[i]
-  if (f.id === targetId) {
-    f.x = newX   // 修改字段
+  constructor(id: number, name: string, x: number, y: number /* ... */) {
+    this.id = id
+    this.name = name
+    this.x = x
+    this.y = y
+    // ...
   }
-  newList.push(f)
 }
-this.state.furniture = newList   // 触发刷新
+
+// 2. 子组件用 @ObjectLink 接收嵌套对象
+@Component
+struct FurnitureListItem {
+  @ObjectLink item: Furniture  // 接收 @Observed 实例
+
+  build() {
+    Row() {
+      Text(this.item.name + ' ' + this.item.x)  // 自动响应 item 属性变化
+    }
+  }
+}
+
+// 3. 父组件用 @State 持有数组
+@Entry
+@Component
+struct Parent {
+  @State furniture: Furniture[] = []
+
+  build() {
+    Column() {
+      ForEach(this.furniture, (f: Furniture) => {
+        FurnitureListItem({ item: f })  // 传递给 @ObjectLink
+      }, (f: Furniture) => f.id.toString())
+    }
+  }
+}
 ```
 
-**删除元素**：
-```typescript
-const filtered: Furniture[] = []
-for (let i = 0; i < this.state.furniture.length; i++) {
-  if (this.state.furniture[i].id !== deleteId) filtered.push(this.state.furniture[i])
-}
-this.state.furniture = filtered
+### @Observed/@ObjectLink 注意事项
+
+| 规则 | 说明 |
+|------|------|
+| `@Observed` 只能装饰 class | interface 不行，必须转为 class + constructor |
+| `@ObjectLink` 不能用于 @Entry 组件 | 只能在子组件中使用 |
+| `@ObjectLink` 变量不能重新赋值 | 不能 `this.item = newItem`，只能改属性 `this.item.x = 1` |
+| `@ObjectLink` 不支持基本类型 | 需要 `@Prop` 替代 |
+| 创建实例必须用 `new` | 不能用对象字面量 `{ id: 1, ... }` |
+| 嵌套属性也需 `@Observed` | 如果 `Room.corners` 的 `Corners` 也需要深层观察，`Corners` 也必须 `@Observed` |
+
+### 完整的响应式分层策略
+
+```
+@State（顶层）  → 观察：属性赋值 + 数组 push/splice
+  ↓ 传递给子组件
+@ObjectLink（子组件）→ 观察：@Observed 实例的属性变化
+  ↓ 如果属性也是 @Observed
+@ObjectLink（孙组件）→ 继续观察更深层变化
 ```
 
-> 💡 **口诀**：`@State` 数组改了啥，最后一定赋新数组。用 `filter/push` 辅助建新数组，最后 `this.xxx = newArr` 收尾。
+> 💡 **口诀**：`@State` 管浅层（数组增删、对象替换），`@Observed` + `@ObjectLink` 管深层（嵌套属性变化）。
 
 ---
 
-## 13. @State 对象嵌套更新 — 替换整个对象
+## 13. @State 对象嵌套更新 — 正确方案
 
-**触发条件**：直接修改 `@State` 对象的深层属性（如 `this.state.room.width = 400`），UI 有时不刷新。
+**触发条件**：直接修改 `@State` 对象的深层属性（如 `this.state.room.width = 400`），UI 不刷新。
 
-**正确写法**：整体替换对象。
+### 方案 A（推荐）：@Observed + @ObjectLink
+
 ```typescript
-// ❌ 直接改深层字段，可能不刷新
-this.state.room.width = 400
+@Observed
+class Room {
+  width: number = 380
+  length: number = 460
+  corners: Corners = new Corners(...)
+  constructor(width: number, length: number, corners: Corners) { ... }
+}
 
-// ✅ 整体替换对象
-const newRoom: Room = { width: 400, length: this.state.room.length, corners: this.state.room.corners }
-this.state.room = newRoom
+// 在父组件中直接修改属性
+this.state.room.width = 400  // @Observed 代理检测到变化，通知 @ObjectLink 子组件
 ```
 
-> 注意：如果外层 `this.state` 本身也是 `@State`，而 `room` 是其字段，则修改 `this.state.room = newRoom` 才可靠触发刷新；若只是 `this.state.room.width = 400` 则可能不刷新，取决于 ArkTS 版本。
+### 方案 B（备选）：整体替换对象
+
+```typescript
+// 不使用 @Observed 时，整体替换
+this.state.room = new Room(400, this.state.room.length, this.state.room.corners)
+```
+
+> 方案 A 更符合官方推荐，代码更简洁，不需要每次都重建对象。
 
 ---
 
@@ -520,6 +577,8 @@ type DoorDirection = 'left' | 'right'
 | `any` / `unknown` | 明确的 interface/class 类型 |
 | `'val' as Type`（as 断言） | `const x: Type = 'val'` 类型注解 |
 | `field?: Type`（可选） | 必填 `field: Type` + 默认值 |
+| 嵌套对象属性变化 | `@Observed` class + 子组件 `@ObjectLink` |
+| `interface` 需要深层观察 | 改为 `@Observed class` + constructor |
 | `JSON.parse(JSON.stringify(x))` | 手写 `cloneXxx()` 函数 |
 | `array.filter(fn)` / `array.map(fn)` | for 循环 |
 | `enum X { ... }` | `type X = 'a' \| 'b'` |

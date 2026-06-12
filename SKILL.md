@@ -98,8 +98,8 @@ ArkTS 基于 TypeScript 扩展，是 HarmonyOS NEXT 的主要开发语言。**Ar
 | 禁止 Record<K,V> | `Record<string, T>` | 数组 + 查找函数 |
 | 禁止可选属性 | `field?: Type` | 必填 + 默认值 |
 | 必须显式导入类型 | 漏导 type → `Cannot find name` | import 中加全所有类型 |
-| @State 数组不会自动刷新 | `.push()` / 改元素字段 | 整体替换为新数组 `this.arr = newArr` |
-| @State 对象深层字段 | `this.obj.field = x` | 整体替换对象 `this.obj = newObj` |
+| 嵌套对象属性变化不刷新 | `this.state.room.width = x` | `@Observed` class + 子组件 `@ObjectLink` |
+| interface 需深层观察 | `interface X { ... }` 不触发刷新 | 改为 `@Observed class X` + constructor |
 
 ### 基本语法要点
 
@@ -117,13 +117,13 @@ ArkTS 基于 TypeScript 扩展，是 HarmonyOS NEXT 的主要开发语言。**Ar
 |--------|------|----------|
 | `@Entry` | 标记页面入口组件 | — |
 | `@Component` | 标记自定义组件 | — |
-| `@State` | 组件内部可变状态 | 本组件内 |
+| `@State` | 组件内部可变状态（观察第一层） | 本组件内 |
 | `@Prop` | 父→子单向数据传递 | 父→子 |
 | `@Link` | 父子双向数据绑定 | 父↔子 |
 | `@Provide` | 跨层级向下提供数据 | 祖先→后代 |
 | `@Consume` | 跨层级向上消费数据 | 后代←祖先 |
-| `@Observed` | 标记可观察的类 | — |
-| `@ObjectLink` | 嵌套对象状态管理 | 双向 |
+| `@Observed` | 标记可深层观察的 class（嵌套对象属性变化） | — |
+| `@ObjectLink` | 子组件接收 @Observed 实例（观察属性变化） | 双向 |
 | `@Watch` | 监听状态变化回调 | — |
 | `@Builder` | 轻量 UI 复用函数 | — |
 | `@Extend` | 扩展原生组件样式 | — |

@@ -632,9 +632,9 @@ type DoorDirection = 'left' | 'right'
 | `array.filter(fn)` / `array.map(fn)` | for 循环 |
 | `enum X { ... }` | `type X = 'a' \| 'b'` |
 | `import { Canvas } from '@kit.ArkUI'` | 不 import，组件内直接使用 |
-| `AlertDialog.show({...})` / `ActionSheet.show({...})` | `this.getUIContext().showAlertDialog({...})` / `this.getUIContext().showActionSheet({...})` |
 | 给 ActionSheet 加 `backgroundColor` 颜色异常 | 同时设置 `backgroundBlurStyle: BlurStyle.NONE`，或改用 `@CustomDialog` |
-| 需要美观自定义弹窗 | `@CustomDialog` + `CustomDialogController`，设 `customStyle: true` |\n| `@CustomDialog` 中 `controller: CustomDialogController = new ...` 自引用初始化 | ⚠️ **会导致 undefined**！改为 `controller?:` + `onClose` 回调关闭弹窗 |
+| 需要美观自定义弹窗 | `@CustomDialog` + `CustomDialogController`，设 `customStyle: true` |
+| `@CustomDialog` 中 `controller: CustomDialogController = new ...` 自引用初始化 | ⚠️ **会导致 undefined**！改为 `controller?:` + `onClose` 回调关闭弹窗 |
 | `const ctrl = new ...` 无类型注解 | 推断为 any → 加 `const ctrl: CustomDialogController = ...` |
 | builder 内箭头函数用表达式 `() => expr` | 返回类型推断受限 → 改为 `{ }` 函数体 |
 
@@ -884,12 +884,13 @@ const text2: string = data2.getPrimaryText() as string;
 
 ```typescript
 // 注意：只需要 import pasteboard，**不要** import PasteButton 等
-import { promptAction } from '@kit.ArkUI';
+import { PromptAction } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
 
 @CustomDialog
 struct ImportDialog {
   controller?: CustomDialogController;
+  private promptAction: PromptAction = this.getUIContext().getPromptAction();
   onPasted: (text: string) => void = (_t: string) => {};
   onClose: () => void = () => {};
 
@@ -916,10 +917,10 @@ struct ImportDialog {
               this.onPasted(text);
               this.onClose();
             }).catch((err: Error) => {
-              promptAction.showToast({ message: '读取失败: ' + err.message });
+              this.promptAction.showToast({ message: '读取失败: ' + err.message });
             });
           } else {
-            promptAction.showToast({ message: '用户拒绝授权' });
+            this.promptAction.showToast({ message: '用户拒绝授权' });
           }
         })
     }

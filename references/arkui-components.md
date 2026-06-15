@@ -227,69 +227,88 @@ Slider({
 
 ## 4. 弹窗与对话框
 
-### AlertDialog
+### AlertDialog（API 12+ 推荐）
+
+> ⚠️ `AlertDialog.show()` 已废弃，改用 `this.getUIContext().showAlertDialog()`
 
 ```typescript
-AlertDialog.show({
+this.getUIContext().showAlertDialog({
   title: '提示',
   message: '确认删除此条记录？',
-  primaryButton: {
-    value: '取消',
-    action: () => {}
-  },
-  secondaryButton: {
-    value: '确认',
-    action: () => { /* 执行删除 */ }
-  }
-})
-```
-
-### ActionSheet
-
-```typescript
-ActionSheet.show({
-  title: '选择操作',
-  message: '请选择要执行的操作',
   buttons: [
-    { text: '拍照', action: () => {} },
-    { text: '从相册选择', action: () => {} },
-    { text: '取消', action: () => {} }
+    { value: '取消', action: () => {} },
+    { value: '确认', action: () => { /* 执行删除 */ } }
   ]
 })
 ```
 
+### ActionSheet（API 12+ 推荐）
+
+> ⚠️ `ActionSheet.show()` 已废弃，改用 `this.getUIContext().showActionSheet()`
+
+```typescript
+this.getUIContext().showActionSheet({
+  title: '选择操作',
+  message: '请选择要执行的操作',
+  sheets: [
+    { title: '拍照', action: () => {} },
+    { title: '从相册选择', action: () => {} },
+    { title: '取消', action: () => {} }
+  ]
+})
+```
+
+> ⚠️ 注意：`showActionSheet` 默认 `backgroundBlurStyle: BlurStyle.COMPONENT_ULTRA_THICK`，会与 `backgroundColor` 叠加产生异常效果。如需自定义背景色，必须同时设置：
+> ```typescript
+> this.getUIContext().showActionSheet({
+>   backgroundBlurStyle: BlurStyle.NONE,
+>   backgroundColor: '#faf8f2',
+>   // ...
+> })
+> ```
+
 ### CustomDialog
+
+> ⚠️ 新版 ArkTS 编译器要求 `controller` 必须声明为可选（`controller?:`），且关闭弹窗需用 `onClose` 回调，避免自引用 TDZ 错误。
 
 ```typescript
 @CustomDialog
 struct MyDialog {
-  controller: CustomDialogController
+  controller?: CustomDialogController;
+  onClose: () => void = () => {};
 
   build() {
     Column() {
       Text('自定义对话框')
-      Button('关闭').onClick(() => { this.controller.close() })
+      Button('关闭').onClick(() => { this.onClose(); })
     }
     .padding(20)
   }
 }
 
-// 调用
-dialogController: CustomDialogController = new CustomDialogController({
-  builder: MyDialog(),
-  autoCancel: true
-})
-
-// 显示
-this.dialogController.open()
+// 调用（注意显式类型注解 + 箭头函数函数体语法）
+const ctrl: CustomDialogController = new CustomDialogController({
+  builder: MyDialog({
+    onClose: () => { ctrl.close(); }
+  }),
+  autoCancel: true,
+  customStyle: true,
+});
+ctrl.open();
 ```
 
-### Toast
+### Toast（API 12+ 推荐）
+
+> ⚠️ 建议使用 `PromptAction` 实例的 `showToast()` 方法：
 
 ```typescript
-import promptAction from '@ohos.promptAction'
+import { PromptAction } from '@kit.ArkUI';
 
-promptAction.showToast({
+// 在组件中
+private promptAction: PromptAction = this.getUIContext().getPromptAction();
+
+// 调用
+this.promptAction.showToast({
   message: '操作成功',
   duration: 2000
 })

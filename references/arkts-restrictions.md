@@ -796,6 +796,96 @@ this.getUIContext().showActionSheet({
 
 ---
 
+## 20. `Record` 值类型不能含 `object` — 只用基本类型
+
+**触发条件**：`Record<string, number | string | object>` — AllowTS 严格模式禁止 `object` 出现在联合类型中（编译错误 10505001）。
+
+**错误写法**：
+```typescript
+// ❌ object 不能出现在 Record 值类型
+function roomToPlain(r: Room): Record<string, object | number | string> {
+  const obj: Record<string, number> = {};
+  // ...
+  return obj;  // Record<string, number> 对不上 Record<string, object | number | string>
+}
+```
+
+**正确写法**：去掉 `object`，只用基本类型（`number`, `string`, `boolean`）；
+顶层容器用 `Record<string, Object>`。
+```typescript
+// ✅ 只用基本类型
+function openingToPlain(o: Opening): Record<string, number | string> { ... }
+function furnitureToPlain(f: Furniture): Record<string, number | string | boolean> { ... }
+
+// ✅ 顶层容器用 Object（接受各种子类型）
+export function schemeToJson(scheme: Scheme): string {
+  const obj: Record<string, Object> = {};
+  obj['room'] = roomToPlain(scheme.room);  // Record<string, number> 可赋值给 Object
+  // ...
+}
+```
+
+---
+
+## 21. `common` 导入 — 不能用 `import type` + default
+
+**触发条件**：`import type common from '@kit.AbilityKit'` — `@kit.AbilityKit` 不导出 `default`。
+
+**正确写法**：
+```typescript
+import { common } from '@kit.AbilityKit';  // 命名导出 + 非 type 导入
+```
+
+---
+
+## 22. pasteboard 剪贴板 — 在 `@kit.BasicServicesKit` 不是 `@kit.ArkData`
+
+**错误写法**：
+```typescript
+import { pasteboard } from '@kit.ArkData';  // ❌ 错误模块
+```
+
+**正确写法**：
+```typescript
+import { pasteboard } from '@kit.BasicServicesKit';  // ✅
+
+// createData 是模块级函数，不是 SystemPasteboard 的方法
+const sp: pasteboard.SystemPasteboard = pasteboard.getSystemPasteboard();
+const data: pasteboard.PasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text);
+sp.setData(data);
+
+// getDataSync 无参数
+const data2: pasteboard.PasteData = sp.getDataSync();
+const text2: string = data2.getPrimaryText() as string;
+```
+
+---
+
+## 23. `showActionSheet` 按钮数组用 `sheets` 不用 `buttons`
+
+**触发条件**：API 12+ 的 `ActionSheetOptions` 结构变更 — `buttons` 属性不存在。
+
+**正确写法**：
+```typescript
+// 先定义 interface（避免对象字面量类型错误）
+interface ActionSheetItem {
+  title: string;
+  action: () => void;
+}
+
+const sheets: ActionSheetItem[] = [];
+const item: ActionSheetItem = { title: '选项1', action: () => { /* ... */ } };
+sheets.push(item);
+
+this.getUIContext().showActionSheet({
+  title: '标题',
+  message: '说明',
+  sheets: sheets  // ✅ 不是 buttons
+});
+```
+
+---
+
 ## 编译器错误信息速查
 
 | 错误码 | 关键字 | 一句话说明 |
@@ -812,6 +902,10 @@ this.getUIContext().showActionSheet({
 | 10605008 | `Use explicit types instead of "any", "unknown"` | 变量无类型注解推断为 any → 加显式类型如 `const ctrl: CustomDialogController = ...` |
 | 10605090 | `Function return type inference is limited` | 箭头函数用表达式语法 → 改为 `{ }` 函数体：`() => { expr; }` |
 | — | `Block-scoped variable 'ctrl' used before its declaration` | builder 中传 `controller: ctrl`（TDZ）→ 改用 `onClose` 回调 |
+| 10505001 | `not assignable to parameter of type 'Record<...>'` | Record 值类型含 `object` → 去掉 `object`，顶层用 `Object` |
+| 10505001 | `not exported from Kit` (default) | `import type default from` → 改用 `import { name }` |
+| 10311006 | `is not exported from Kit 'X'` | 模块路径错误（如 pasteboard 在 `@kit.BasicServicesKit` 而非 `@kit.ArkData`） |
+| — | `'buttons' does not exist in type 'ActionSheetOptions'` | API 变更 → 改用 `sheets: ActionSheetItem[]` |
 | — | `Cannot find name 'X'` | 漏导类型 → 在 import 中显式添加 |
 
 ---

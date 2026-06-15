@@ -1,7 +1,7 @@
 ---
 name: harmony-skill
 description: 鸿蒙（HarmonyOS NEXT）应用开发技能包。当用户需要开发鸿蒙应用、编写 ArkTS/ArkUI 代码、创建鸿蒙工程、调试鸿蒙应用、使用 Electron 框架开发鸿蒙 PC 应用、将现有 Electron 项目迁移到鸿蒙、或咨询鸿蒙开发相关问题时触发此技能。覆盖环境搭建、工程结构、ArkTS 语法、ArkUI 声明式 UI、Electron for HarmonyOS、应用模型（Stage 模型）、路由导航、网络请求、数据持久化、应用签名与发布等全流程开发场景。以华为官方文档为准。
-version: 1.5.0
+version: 1.5.1
 agent_created: true
 ---
 
@@ -19,6 +19,7 @@ agent_created: true
 | 1.3.1 | 2026-06-12 | **⚠️ 修正 CustomDialog controller 自引用 bug**：自引用 `= new CustomDialogController({ builder: 自身 })` 导致 controller undefined |
 | 1.4.0 | 2026-06-12 | **controller 声明改为可选**（`controller?: CustomDialogController`）避免 "runtime-independent default value" 编译器错误；`close()` 改为安全调用 `?.close()` |
 | 1.5.0 | 2026-06-12 | **CustomDialog 关闭改为 onClose 回调**：避免 `controller: ctrl` TDZ 错误 + `const ctrl` 需显式类型注解 + 箭头函数需用函数体语法 `{}` |
+| 1.5.1 | 2026-06-15 | **`unknown` → `Object` 替代**：ArkTS 禁止 `unknown` 参数类型，JSON 反序列化时用 `Object` 接收，`JSON.parse()` 返回值必须显式 `as Object` |
 
 ## 概述
 
@@ -642,3 +643,4 @@ showMyDialog(data: MyData): void {
 | 1.3.1 | 2026-06-12 | **⚠️ 修正 CustomDialog controller 自引用 bug**：`controller: CustomDialogController = new CustomDialogController({ builder: 自身 })` 导致 undefined。正确做法是只声明类型 `controller: CustomDialogController`（无默认值），框架自动注入实例。 |
 | 1.4.0 | 2026-06-12 | **controller 改为可选声明**（`controller?: CustomDialogController` + `?.close()`），解决新版 ArkTS 编译器 "If a component attribute supports local initialization, a valid, runtime-independent default value should be set for it" 编译错误。 |
 | 1.5.0 | 2026-06-12 | **CustomDialog 关闭改为 onClose 回调模式**：解决 `controller: ctrl` TDZ 错误、`const ctrl` 需显式类型注解避免 any 推断、箭头函数需用 `{}` 函数体语法。新增编译错误速查表。 |
+| 1.5.1 | 2026-06-15 | **JSON 反序列化 `unknown` 修复**：`unknown` 参数类型改用 `Object`，`JSON.parse()` 返回值显式 `as Object`，数组变量显式 `as Object[]`，更新 arkts-restrictions.md 第 4 条。 |

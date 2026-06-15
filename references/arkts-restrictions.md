@@ -111,24 +111,71 @@ for (let i = 0; i < arr2.length; i++) { merged.push(arr2[i]) }
 
 ## 4. arkts-no-any-unknown (10605008) — 禁止 any/unknown
 
-**触发条件**：使用了 `any` 或 `unknown` 类型。
+**触发条件**：使用了 `any` 或 `unknown` 类型（**包括函数参数、变量声明、`JSON.parse` 返回值未显式接收**）。
 
 **错误写法**：
 ```typescript
-let data: any = JSON.parse(str)
-function handle(val: unknown) { }
+let data: any = JSON.parse(str)          // ❌ any
+function handle(val: unknown) { }        // ❌ unknown 参数
+function num(val: unknown, def: number)  // ❌ unknown 参数
 ```
 
-**正确写法**：使用明确的类型。
+**正确写法 A — 类型已知，直接断言**：
 ```typescript
 interface ConfigData {
   version: number
   name: string
 }
-let data: ConfigData = JSON.parse(str) as ConfigData
-
-// 宁可多加类型定义，也不要用 any
+const data: ConfigData = JSON.parse(str) as ConfigData
 ```
+
+**正确写法 B — JSON 反序列化 + 逐字段安全读取（最常用）**：
+
+> 场景：从 Preferences / 剪贴板反序列化 JSON，结构不完全可控时。
+
+```typescript
+// 1. 用 Object 接收（ArkTS 允许 Object，禁止 unknown/any）
+const parsed: Object = JSON.parse(jsonStr) as Object;
+if (parsed === null || typeof parsed !== 'object') { return null; }
+
+// 2. 强转为 Record<string, Object>（允许按字符串 key 访问）
+const record = parsed as Record<string, Object>;
+
+// 3. 定义安全读取辅助函数（参数类型用 Object，不用 unknown）
+function num(val: Object, fallback: number): number {
+  if (typeof val === 'number') {
+    const n = val as number;
+    if (!isNaN(n) && isFinite(n)) return n;
+  }
+  return fallback;
+}
+function str(val: Object, fallback: string): string {
+  if (typeof val === 'string') return val as string;
+  return fallback;
+}
+function bool(val: Object, fallback: boolean): boolean {
+  if (typeof val === 'boolean') return val as boolean;
+  return fallback;
+}
+
+// 4. 使用
+const id = str(record['id'], '');
+const width = num(record['width'], 380);
+
+// 5. 数组也需要显式类型
+const openingsRaw: Object = record['openings'];
+if (Array.isArray(openingsRaw)) {
+  const arr = openingsRaw as Object[];
+  for (let i = 0; i < arr.length; i++) {
+    openings.push(plainToOpening(arr[i]));  // arr[i] 是 Object，合法
+  }
+}
+```
+
+**关键规则**：
+- `JSON.parse()` 返回值必须 `as Object` 显式接收
+- 安全辅助函数参数用 `Object`，不用 `unknown`
+- `getSchemeNames()` 等解析数组时，`parsed` 也要 `as Object` 后 `as Object[]`
 
 ---
 
@@ -756,7 +803,7 @@ this.getUIContext().showActionSheet({
 | 10605040 | `arkts-no-obj-literals-as-types` | 禁止对象字面量做类型 → 定义 interface |
 | 10605038 | `arkts-no-untyped-obj-literals` | 禁止无类型对象字面量 → 加类型注解 |
 | 10605099 | `arkts-no-spread` | 禁止 spread → 逐字段拷贝 |
-| 10605008 | `arkts-no-any-unknown` | 禁止 any/unknown（含 `as` 断言） → 明确类型 + 类型注解 |
+| 10605008 | `arkts-no-any-unknown` | 禁止 any/unknown（含函数参数） → **用 `Object` 替代** `unknown`，`JSON.parse()` 必须 `as Object` |
 | 10605029 | `arkts-no-props-by-index` | 禁止索引访问 → if/switch 展开 |
 | 10311006 | `is not exported from Kit` | 导入不存在 → 检查 API 来源 |
 | 10505001 | `; expected` / `Declaration expected` | 语法糖不支持 → 可能是箭头函数/Builder 调用方式 |

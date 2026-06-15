@@ -1,7 +1,7 @@
 ---
 name: harmony-skill
 description: 鸿蒙（HarmonyOS NEXT）应用开发技能包。当用户需要开发鸿蒙应用、编写 ArkTS/ArkUI 代码、创建鸿蒙工程、调试鸿蒙应用、使用 Electron 框架开发鸿蒙 PC 应用、将现有 Electron 项目迁移到鸿蒙、或咨询鸿蒙开发相关问题时触发此技能。覆盖环境搭建、工程结构、ArkTS 语法、ArkUI 声明式 UI、Electron for HarmonyOS、应用模型（Stage 模型）、路由导航、网络请求、数据持久化、应用签名与发布等全流程开发场景。以华为官方文档为准。
-version: 1.5.2
+version: 1.5.6
 agent_created: true
 ---
 
@@ -20,6 +20,8 @@ agent_created: true
 | 1.4.0 | 2026-06-12 | **controller 声明改为可选**（`controller?: CustomDialogController`）避免 "runtime-independent default value" 编译器错误；`close()` 改为安全调用 `?.close()` |
 | 1.5.0 | 2026-06-12 | **CustomDialog 关闭改为 onClose 回调**：避免 `controller: ctrl` TDZ 错误 + `const ctrl` 需显式类型注解 + 箭头函数需用函数体语法 `{}` |
 | 1.5.1 | 2026-06-15 | **`unknown` → `Object` 替代**：ArkTS 禁止 `unknown` 参数类型，JSON 反序列化时用 `Object` 接收，`JSON.parse()` 返回值必须显式 `as Object` |
+| 1.5.2 | 2026-06-15 | **第二轮修复**：Record 值类型禁 `object`、`common` 命名导入、pasteboard 模块 `@kit.BasicServicesKit`、ActionSheet `buttons→sheets`。新增第 20-23 条 + 扩充错误速查表 |
+| 1.5.6 | 2026-06-15 | **🔥 终极修正剪贴板方案**：错误根源是 `import { PasteButton } from '@kit.ArkUI'` 写法本身错误。`PasteButton` 等是 ArkUI 内置全局符号（API 10+），不能从 `@kit.ArkUI` import。正确写法：直接 `PasteButton({...})`，不写任何 import。重写 arkts-restrictions.md 第 22.5 条 |
 
 ## 概述
 
@@ -645,4 +647,4 @@ showMyDialog(data: MyData): void {
 | 1.5.0 | 2026-06-12 | **CustomDialog 关闭改为 onClose 回调模式**：解决 `controller: ctrl` TDZ 错误、`const ctrl` 需显式类型注解避免 any 推断、箭头函数需用 `{}` 函数体语法。新增编译错误速查表。 |
 | 1.5.1 | 2026-06-15 | **JSON 反序列化 `unknown` 修复**：`unknown` 参数类型改用 `Object`，`JSON.parse()` 返回值显式 `as Object`，数组变量显式 `as Object[]`，更新 arkts-restrictions.md 第 4 条。 |
 | 1.5.2 | 2026-06-15 | **第二轮修复**：Record 值类型禁 `object`、`common` 命名导入、pasteboard 模块 `@kit.BasicServicesKit`、ActionSheet `buttons→sheets`。新增第 20-23 条 + 扩充错误速查表。 |
-| 1.5.2 | 2026-06-15 | **Record 类型/Common 导入/pasteboard/ActionSheet**：Record 值禁 `object`、`common` 用命名导入、pasteboard 在 `@kit.BasicServicesKit`、`showActionSheet` 用 `sheets`。新增第 20-23 条 + 扩充速查表。 |
+| 1.5.3 | 2026-06-15 | **⚠️ 修正剪贴板权限方案**：API 12 的 `@kit.ArkUI` **不导出** `PasteButton`/`PasteIconStyle`/`PasteDescription`/`PasteButtonOnClickResult`（编译器 10505001）。回滚到 `READ_PASTEBOARD` 权限 + 签名 grant + 普通 Button 调 `getData()`。重写 arkts-restrictions.md 第 22.5 条 |

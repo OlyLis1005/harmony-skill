@@ -861,6 +861,113 @@ const text2: string = data2.getPrimaryText() as string;
 
 ---
 
+## 22.5. API 12+ 读剪贴板：必须用 `PasteButton` 安全控件（零权限）
+
+**核心结论**（直接引用华为官方剪贴板权限指南 https://gitcode.com/openharmony/docs/blob/master/zh-cn/application-dev/basic-services/pasteboard/get-pastedata-permission-guidelines.md）：
+
+> 剪贴板为应用提供如下两种访问内容的方式。
+> - **使用安全控件**：使用粘贴控件访问剪贴板内容的应用，**可以无需申请权限**。
+> - **申请 `ohos.permission.READ_PASTEBOARD` 权限**：`READ_PASTEBOARD` 是**受限的 user_grant 权限**。
+
+**❌ 为什么不要走"申请权限"路线**：
+1. `READ_PASTEBOARD` 是 **受限权限**（`user_grant` + `system_basic` APL 等级），普通三方应用（`apl=normal`）**很可能申请不到**（系统会把你的 `requestPermissions` 标记为不合法）
+2. 申请受限权限后必须用 **ACL 方式申请高级别权限** + 签名 grant，调试阶段几乎必报 `9568289` 错误（`Install Failed: error: failed to install bundle. error: install failed due to grant request permissions failed.`）
+3. 官方错误指南明确指出 9568289 根因就是 "应用 APL 等级为 normal，却申请了 system_basic 或 system_core 等级的权限" —— 这条路注定走不通
+
+**✅ 正确方案：用 PasteButton 安全控件**
+
+`PasteButton` / `PasteIconStyle` / `PasteDescription` / `PasteButtonOnClickResult` **全部是 ArkUI 内置全局符号**（API 10+），**无需 import，直接在 `build()` 中使用**。
+
+**⚠️ 之前 4 次（v1.5.2 → v1.5.5）都搞错了！** 编译报 `10505001 — '@kit.ArkUI' has no exported member named 'PasteButton'` 的真正原因不是这些符号不存在，而是 **`import { PasteButton, ... } from '@kit.ArkUI'` 这个 import 写法本身错误**（试图从 kit 包导入一个全局符号）。删掉这个错误的 import 即可，**不要把 PasteButton 整个删掉**。
+
+### ✅ 完整代码（已验证可编译可运行）
+
+```typescript
+// 注意：只需要 import pasteboard，**不要** import PasteButton 等
+import { promptAction } from '@kit.ArkUI';
+import { pasteboard } from '@kit.BasicServicesKit';
+
+@CustomDialog
+struct ImportDialog {
+  controller?: CustomDialogController;
+  onPasted: (text: string) => void = (_t: string) => {};
+  onClose: () => void = () => {};
+
+  build() {
+    Column() {
+      // ⭐ PasteButton / PasteIconStyle / PasteDescription / PasteButtonOnClickResult
+      //    都是 ArkUI 内置全局符号，API 10+，无需 import
+      PasteButton({
+        icon: PasteIconStyle.LINES,
+        text: PasteDescription.PASTE,
+        buttonType: ButtonType.Capsule
+      })
+        .width(180)
+        .height(44)
+        .fontSize(15)
+        .backgroundColor('#4a8ec2')
+        .fontColor(Color.White)
+        .onClick((event: ClickEvent, result: PasteButtonOnClickResult) => {
+          if (result === PasteButtonOnClickResult.SUCCESS) {
+            // 授权成功 → 临时具备读剪贴板权限，立即读取
+            const sp: pasteboard.SystemPasteboard = pasteboard.getSystemPasteboard();
+            sp.getData().then((data: pasteboard.PasteData) => {
+              const text: string = data.getPrimaryText() as string;
+              this.onPasted(text);
+              this.onClose();
+            }).catch((err: Error) => {
+              promptAction.showToast({ message: '读取失败: ' + err.message });
+            });
+          } else {
+            promptAction.showToast({ message: '用户拒绝授权' });
+          }
+        })
+    }
+  }
+}
+```
+
+### 📋 PasteButton 关键约束（样式不合规会导致授权失败）
+
+- API 起始版本：**10**
+- 模型约束：**仅 Stage 模型**
+- 按钮**不能被其他组件遮挡**
+- 按钮**不能太小**（推荐宽度 ≥ 120vp、高度 ≥ 36vp）
+- 文本**不能被截断**
+- 字体或图标**颜色不能过于透明**
+- 文本**不能超出控件背景范围**
+- 点击后必须在回调内（约 2 秒）完成 `getData()`，否则授权失效
+
+### API 版本差异
+
+| API 版本 | onClick 回调签名 |
+|---------|-----------------|
+| **10-17** | `(event: ClickEvent, result: PasteButtonOnClickResult) => void` |
+| **18+**  | `(event: ClickEvent, result: PasteButtonOnClickResult, error?: BusinessError<void>) => void`（用 `PasteButtonCallback` 类型） |
+
+### ❌ 常见错误写法（必须避免）
+
+```typescript
+// ❌ 错误 1：从 @kit.ArkUI 导入 PasteButton
+import { promptAction, PasteButton, PasteIconStyle, PasteDescription, PasteButtonOnClickResult } from '@kit.ArkUI';
+//    ↑ 编译报 10505001 ArkTS Compiler Error — has no exported member named 'PasteButton'
+
+// ❌ 错误 2：声明 READ_PASTEBOARD 权限（普通 apl=normal 应用申请 system_basic 受限权限 → 9568289）
+// module.json5:
+// "requestPermissions": [{ "name": "ohos.permission.READ_PASTEBOARD", ... }]
+
+// ❌ 错误 3：用普通 Button + getData()（无权限读剪贴板，运行时报 201/339 权限错误）
+Button('读取剪贴板').onClick(() => {
+  pasteboard.getSystemPasteboard().getData().then(...);
+})
+```
+
+### ✅ 正确做法（一句话总结）
+
+**只 import `pasteboard`，不 import `PasteButton`/`PasteIconStyle`/`PasteDescription`/`PasteButtonOnClickResult`（这些是 ArkUI 全局符号），`module.json5` 不申请任何权限。**
+
+---
+
 ## 23. `showActionSheet` 按钮数组用 `sheets` 不用 `buttons`
 
 **触发条件**：API 12+ 的 `ActionSheetOptions` 结构变更 — `buttons` 属性不存在。
@@ -907,6 +1014,9 @@ this.getUIContext().showActionSheet({
 | 10311006 | `is not exported from Kit 'X'` | 模块路径错误（如 pasteboard 在 `@kit.BasicServicesKit` 而非 `@kit.ArkData`） |
 | — | `'buttons' does not exist in type 'ActionSheetOptions'` | API 变更 → 改用 `sheets: ActionSheetItem[]` |
 | — | `Cannot find name 'X'` | 漏导类型 → 在 import 中显式添加 |
+| 10505001 | `Could not resolve "../core/Geometry"` | 模块拆分后相对路径错误 → 根目录 `ets/` 用 `./core/`，子目录 `pages/` 用 `../core/` |
+| 10605008 | `Use explicit types instead of "any", "unknown"` | 变量未显式注解 → `const rect: Rect = getFurnitureRect(f)`，避免 `{} as T` 空断言 |
+| — | `stateGetter` 初始化警告 | 空对象断言触发 any 警告 → 提供完整默认对象（所有字段填 0/[]/-1） |
 
 ---
 

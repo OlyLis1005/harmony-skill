@@ -1017,6 +1017,10 @@ this.getUIContext().showActionSheet({
 | 10505001 | `Could not resolve "../core/Geometry"` | 模块拆分后相对路径错误 → 根目录 `ets/` 用 `./core/`，子目录 `pages/` 用 `../core/` |
 | 10605008 | `Use explicit types instead of "any", "unknown"` | 变量未显式注解 → `const rect: Rect = getFurnitureRect(f)`，避免 `{} as T` 空断言 |
 | — | `stateGetter` 初始化警告 | 空对象断言触发 any 警告 → 提供完整默认对象（所有字段填 0/[]/-1） |
+| 10605043 | `Array literals must contain elements of only inferrable types` | 数组字面量元素类型必须可推断 → 添加类型注解如 `const points: Point[] = [...]` |
+| 10605146 | `Switching off type checks with in-place comments is not allowed` | ArkTS 严格模式禁止 `// @ts-ignore` → 必须修复类型问题，不能忽略 |
+| — | `'showToast' has been deprecated` | `promptAction.showToast` 已废弃 → 使用 `this.getUIContext().promptAction.showToast()` 或 `getUIContext().promptAction.showToast()` |
+| 10311006 | `'getContext' is not exported from Kit '@kit.ArkUI'` | `getContext` 不再从 `@kit.ArkUI` 导出 → 使用 `this.context`（需类型断言为 `common.Context`） |
 
 ---
 

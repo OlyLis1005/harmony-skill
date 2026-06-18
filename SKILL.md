@@ -8,7 +8,14 @@ version: 2.0.0
 
 ## 概述
 
-以华为官方文档（https://developer.huawei.com/consumer/cn/doc/）为准。遇到 API 细节优先 WebFetch 官方文档获取最新信息。
+以华为官方文档（https://developer.huawei.com/consumer/cn/doc/）为准。
+
+**核心约束（必须遵守）**：
+1. **禁止猜测**：生成 ArkTS/ArkUI 代码时，必须严格基于本技能文档和华为官方文档中的内容。禁止凭训练数据"推测"API、编造不存在的属性/方法，或使用过时的写法。
+2. **不确定时依赖技能文档**：遇到不确定的 API、组件属性、版本差异时，优先查阅本技能文档（`references/` 目录）。
+3. **华为官方文档获取方式**：华为官方文档（https://developer.huawei.com/consumer/cn/doc/）和 GitCode Electron 文档（https://gitcode.com/openharmony-sig/electron）**均无法通过 WebFetch 直接获取**。若技能文档无法覆盖当前问题，**必须使用 agent-browser（浏览器自动化）打开对应页面获取信息**，绝不可凭猜测编造。
+4. **冲突时以官方为准**：如果技能文档与官方文档存在冲突，以官方文档为准，并告知用户差异。
+5. **明确告知不确定**：如果通过 agent-browser 也无法获取，**必须明确告知用户"无法确认"**，绝不可编造一个答案。
 
 ## 触发条件与决策流
 
@@ -20,7 +27,7 @@ version: 2.0.0
 4. **页面跳转/导航** → 简单场景用 Router，复杂场景用 Navigation
 5. **网络请求** → 参照「网络请求」模板
 6. **数据存储** → 轻量用 Preferences，结构化数据用 RelationalStore
-7. **调用系统能力** → 查阅「常用系统能力」表，必要时 WebFetch 官方 API
+7. **调用系统能力** → 查阅「常用系统能力」表，优先使用技能文档中的内容
 8. **Electron 开发鸿蒙 PC 应用 / 迁移** → 参照「Electron for HarmonyOS」
    - 从零创建 → 环境搭建 + 第一个应用
    - 迁移现有项目 → 迁移指南 + 架构差异

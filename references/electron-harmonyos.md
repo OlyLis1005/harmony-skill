@@ -1,6 +1,6 @@
 # Electron for HarmonyOS 完整开发指南
 
-> 来源：https://gitcode.com/openharmony-sig/electron + https://www.electronjs.org/docs/latest
+> 来源：https://gitcode.com/openharmony-sig/electron（文档：https://gitcode.com/openharmony-sig/electron/tree/master/docs）+ https://www.electronjs.org/docs/latest
 > 优先以华为官方文档和 GitCode 仓库为准，本文档作为快速参考。
 
 ## 一、概述

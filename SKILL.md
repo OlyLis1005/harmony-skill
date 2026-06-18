@@ -22,6 +22,11 @@ version: 2.0.0
 6. **数据存储** → 轻量用 Preferences，结构化数据用 RelationalStore
 7. **调用系统能力** → 查阅「常用系统能力」表，必要时 WebFetch 官方 API
 8. **Electron 开发鸿蒙 PC 应用 / 迁移** → 参照「Electron for HarmonyOS」
+   - 从零创建 → 环境搭建 + 第一个应用
+   - 迁移现有项目 → 迁移指南 + 架构差异
+   - Electron 调用 ArkTS 系统能力 → `systemPreferences.callArkTSFunction()`（第15章）
+   - Electron fork/spawn 子进程 → HNP 打包（第16章）
+   - Electron 加载 Native Addon → Mock 替代 / AKI 桥接
 9. **TS/JS 代码翻译为 ArkTS** → 参照 `references/arkts-restrictions.md`
 10. **应用签名/上架** → 参照「应用签名与发布」
 

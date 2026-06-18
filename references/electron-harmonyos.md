@@ -646,3 +646,211 @@ app.commandLine.appendSwitch('js-flags', '--max-old-space-size=512')
 | 鸿蒙 PC 开发者论坛 | https://harmonyospc.csdn.net/ |
 | Electron 示例项目 | https://github.com/electron-for-harmonyos/samples |
 | hdc 工具文档 | https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/hdc-usage-0000001821453251 |
+
+---
+
+## 十五、Electron ↔ ArkTS 互调用
+
+> 来源：https://gitcode.com/openharmony-sig/electron + `docs/call-arkts-function-guide/README.md`
+
+### 15.1 systemPreferences.callArkTSFunction()
+
+在鸿蒙 Electron 中，`systemPreferences.callArkTSFunction()` 提供了从 **Electron JS → ArkTS** 的跨语言调用通道，底层通过 AKI 框架将 ArkTS 函数桥接到 C++，再由 C++ 层暴露给 Electron 主进程的 V8。
+
+**JS 端签名**：
+```javascript
+systemPreferences.callArkTSFunction(
+  functionName: string,
+  returnType?: string,
+  paramArray?: any[]
+): Promise<{ type: string, value: any }>
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `functionName` | `string` | 是 | AKI 注册的函数名，格式 `"模块名.方法名"`，如 `"EtsBridge.TestReturnString"` |
+| `returnType` | `string` | 否 | 期望返回值类型：`"void"` / `"number"` / `"boolean"` / `"string"` / `"string[]"` / `"number[]"`，默认 `"void"` |
+| `paramArray` | `any[]` | 否 | 参数数组。数组类型参数需嵌套：`[[1,2,3]]` 表示传递一个数组参数 |
+
+**返回值**：`Promise<{ type: string, value: any }>`
+
+### 15.2 JS 端调用示例
+
+```javascript
+const { systemPreferences } = require('electron');
+
+// 无参数，返回字符串
+const res = await systemPreferences.callArkTSFunction(
+  'EtsBridge.TestReturnString', 'string');
+// res = { type: "string", value: "ets bridge adapter" }
+
+// 带参数调用
+const res2 = await systemPreferences.callArkTSFunction(
+  'EtsBridge.TestTwoParams', 'string', ['hello', 42]);
+// res2 = { type: "string", value: "hello_42" }
+
+// 返回字符串数组（注意外层嵌套数组）
+const res3 = await systemPreferences.callArkTSFunction(
+  'EtsBridge.TestReturnArrayString', 'string[]');
+// res3 = { type: "string[]", value: ["ets", "bridge", "adapter"] }
+```
+
+### 15.3 ArkTS 端注册新函数
+
+**步骤 1**：在 Adapter 中实现业务方法（`EtsBridgeAdapter.ets`）
+
+```typescript
+import { injectable } from 'inversify';
+import { BaseAdapter } from '../common/BaseAdapter';
+import LogMethod from '../common/LogDecorator';
+
+@injectable()
+export class EtsBridgeAdapter extends BaseAdapter {
+  @LogMethod
+  myCustomFunction(param1: string, param2: number): string {
+    return `Result: ${param1} - ${param2}`;
+  }
+}
+```
+
+**步骤 2**：在 Bind 文件中创建包装函数并通过 AKI 注册（`EtsBridgeAdapterBind.ets`）
+
+```typescript
+import JsBindingUtils from '../utils/JsBindingUtils';
+import Inject from '../common/InjectModule';
+import lazy { EtsBridgeAdapter } from '../adapter/EtsBridgeAdapter';
+
+function implEtsBridgeAdapter(): EtsBridgeAdapter {
+  return Inject.getOrCreate(EtsBridgeAdapter);
+}
+
+// 包装函数 —— 签名必须与 Adapter 方法完全一致
+function myCustomFunction(param1: string, param2: number): string {
+  return implEtsBridgeAdapter().myCustomFunction(param1, param2);
+}
+
+export class EtsBridgeAdapterBind {
+  static bind() {
+    // 注册到 AKI，C++ 通过 GetJSFunction("EtsBridge.MyCustomFunction") 检索
+    JsBindingUtils.bindFunction("EtsBridge.MyCustomFunction", myCustomFunction);
+  }
+}
+```
+
+**步骤 3**：确保 `bind()` 在 ArkTS 启动阶段被调用（`JsBindingMethod.ets`）
+
+```typescript
+import { EtsBridgeAdapterBind } from '../jsbindings/EtsBridgeAdapterBind';
+
+export class JsBindingMethod {
+  static bindAll() {
+    // ... 其他 Adapter 的 bind()
+    EtsBridgeAdapterBind.bind();
+  }
+}
+```
+
+### 15.4 已知限制
+
+| 限制 | 说明 |
+|------|------|
+| **不支持异步调用** | ArkTS 函数必须同步返回，不能是 `async` 或返回 `Promise<T>` |
+| **不支持 Function 参数** | 无法把 JS 回调函数传给 ArkTS |
+| **不支持结构化 Object 参数** | Object 会被 JSON.stringify 降级为字符串，ArkTS 侧需自行 `JSON.parse` |
+| **超过 3 个参数退化** | 4+ 参数时所有参数被转为 `string`（`InvokeWithStringArgs` 回退路径） |
+| **数组参数需嵌套** | `[[1,2,3]]` 表示 1 个 `Array<number>` 参数，`[1,2,3]` 会被解析为 3 个独立参数 |
+
+---
+
+## 十六、HNP 打包与子进程
+
+> 来源：`docs/hnp-packaging-guide/README.md`
+
+### 16.1 背景：为什么需要 HNP
+
+PC 25 镜像及以后对应用可执行二进制在内核层进行权限管控，**没有签名的二进制会被 xpm 拦截**。HNP（Harmony Native Package）方案用于对应用内可执行二进制进行签名，避免被 xpm 拦截。
+
+### 16.2 HNP 包构建
+
+**目录结构**：
+```
+hnp
+├── bin
+│   └── electron
+│       └── electron          # 关键可执行文件
+│       └── locales/          # 资源文件
+│       └── ...
+└── hnp.json
+```
+
+**hnp.json**：
+```json
+{
+    "type": "hnp-config",
+    "name": "electron",
+    "version": "1.0",
+    "install": {
+        "links": [
+            {
+                "source": "/bin/electron",
+                "target": "electron"
+            }
+        ]
+    }
+}
+```
+
+**打包命令**（在 DevEco 的 `toolchains` 目录下执行）：
+```bash
+hnpcli pack -i 实际路径/hnp -o hnp包目标路径 -n electron -v 1.0
+```
+
+### 16.3 module.json5 配置
+
+```json
+{
+  "module": {
+    "hnpPackages": [
+      {
+        "package": "electron.hnp",
+        "type": "private"
+      }
+    ]
+  }
+}
+```
+
+### 16.4 fork 子进程
+
+```javascript
+const { fork } = require('child_process');
+const path = require('path');
+
+const child = fork(path.join(__dirname, 'child.js'));
+
+child.on('message', (message) => {
+    console.log('主进程收到消息', message);
+});
+
+child.send({ hello: 'from main process' });
+```
+
+### 16.5 spawn 调用可执行二进制
+
+> ⚠️ 建议使用沙箱物理路径：`/data/app/electron.org/electron_1.0/bin/electron/hello`
+
+```javascript
+const { spawn } = require('child_process');
+
+const binPath = "/data/app/electron.org/electron_1.0/bin/electron/hello";
+const child = spawn(binPath, args, {
+    cwd: path.dirname(binPath),
+    stdio: ["ignore", "pipe", "pipe"]
+});
+
+let output = "";
+child.stdout.on("data", data => { output += data.toString(); });
+child.on("close", code => {
+    if (code === 0) console.log(output);
+});
+```

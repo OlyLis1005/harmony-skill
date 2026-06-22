@@ -16,6 +16,7 @@ version: 2.0.0
 3. **华为官方文档获取方式**：华为官方文档（https://developer.huawei.com/consumer/cn/doc/）和 GitCode Electron 文档（https://gitcode.com/openharmony-sig/electron）**均无法通过 WebFetch 直接获取**。若技能文档无法覆盖当前问题，**必须使用 agent-browser（浏览器自动化）打开对应页面获取信息**，绝不可凭猜测编造。
 4. **冲突时以官方为准**：如果技能文档与官方文档存在冲突，以官方文档为准，并告知用户差异。
 5. **明确告知不确定**：如果通过 agent-browser 也无法获取，**必须明确告知用户"无法确认"**，绝不可编造一个答案。
+6. **写完代码后主动编译验证**：生成或修改 ArkTS/ArkUI 代码后，**必须立即尝试编译**（`hvigorw assembleHap` 或项目中的构建命令），通过编译错误来发现和修复问题，而不是等用户去编译。如果编译环境不可用，则需明确告知用户"无法自动编译验证，请手动编译确认"。
 
 ## 触发条件与决策流
 

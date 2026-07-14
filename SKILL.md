@@ -1,7 +1,7 @@
 ---
 name: harmony-skill
 description: 鸿蒙（HarmonyOS NEXT）应用开发技能包。触发条件：用户需要开发鸿蒙应用、编写 ArkTS/ArkUI 代码、创建鸿蒙工程、调试、Electron 鸿蒙 PC 开发、迁移 Electron 项目、或咨询鸿蒙开发问题。覆盖 ArkTS 语法、ArkUI 声明式 UI、Stage 模型、路由导航、网络请求、数据持久化、Electron for HarmonyOS。
-version: 2.0.0
+version: 2.1.0
 ---
 
 # 鸿蒙应用开发
@@ -37,6 +37,7 @@ version: 2.0.0
    - Electron 加载 Native Addon → Mock 替代 / AKI 桥接
 9. **TS/JS 代码翻译为 ArkTS** → 参照 `references/arkts-restrictions.md`
 10. **应用签名/上架** → 参照「应用签名与发布」
+11. **打包构建 / 多 Flavor（App/HAP）/ 签名排错** → 参照「打包构建与多 Flavor（App/HAP）」
 
 ## 工程结构
 
@@ -240,6 +241,49 @@ new BrowserWindow({
 | 设备信息 | `@ohos.deviceInfo` |
 | 窗口 | `@ohos.window` |
 | 应用上下文 | `@ohos.app.ability.common` |
+
+## 打包构建与多 Flavor（App/HAP）
+
+> 适用场景：打正式 app / 测试 app（含 hap）/ 调试 hap；处理 SignHap 签名失败；统一打包工具链。
+
+### hvigorw 任务层级（关键坑）
+
+| 任务 | 层级 | 参数 |
+|------|------|------|
+| `assembleApp` | **项目级** | `--mode project` |
+| `assembleHap` | **模块级** | `--mode module -p module=<模块名>@<target>`（如 `module=electron@default`） |
+
+- `assembleHap` 必须用 `--mode module` 并指定模块，否则报 `Task ['assembleHap'] was not found in the project`。
+- 典型三 flavor 命令（product 决定签名，buildMode 决定调试/发布）：
+  - 正式 app：`assembleApp --mode project -p product=prod -p buildMode=release` → 产出 `.app`
+  - 测试 app：`assembleApp --mode project -p product=default -p buildMode=release` → 产出 `.app` + `.hap`
+  - 调试 hap：`assembleHap --mode module -p module=electron@default -p product=default -p buildMode=debug` → 产出 `.hap`
+- 构建前先 `ohpm install`，再调 hvigorw。
+
+### 多产品（product）与签名
+
+- `build-profile.json5` 中 `app.products` 定义产品（如 `default`、`prod`），每个 product 的 `signingConfig` 指向 `app.signingConfigs` 中的某条（release / debug 签名）。
+- **常见遗漏**：模块级 `modules[].targets[].applyToProducts` 必须包含该模块要构建的所有 product。新增 `prod` 等产品后，若忘了把它加入 `electron` 模块的 `applyToProducts`，则 `-p product=prod` 会因无模块可构建而失败。
+- `storePassword`/`keyPassword` 在 `build-profile.json5` 中是 DevEco **加密串**（`0000001A…` 前缀），不是明文，排错时勿当明文密码处理。
+
+### 签名 SignHap 失败：JDK 版本不匹配（高频坑）
+
+- **报错特征**：`Init keystore failed` / `parseAlgParameters failed: ObjectIdentifier() -- data isn't an object ID (tag = 48)`。
+- **根因**：本地 hvigor 守护进程用的 JDK 太旧（**JDK 8**），而 `.p12` 由 **JDK 9+** 生成。JDK 9+ 的 PKCS12 用 SHA-256 MAC + PBES2/AES-256 算法参数，JDK 8 解析不了 → 报 `tag = 48 (0x30 = ASN.1 SEQUENCE)` 错误。这对应官方建议「The keystore was created by a newer JDK version」。
+- **确认**：用 `keytool -list -keystore xxx.p12 -storetype PKCS12 -storepass <pass>`，JDK 8 复现完全相同的报错，JDK 17 正常列出条目。解析 `.p12` 的 ASN.1 可见 MAC OID=`2.16.840.1.101.3.4.2.1`（SHA-256）、证书保护 OID=`1.2.840.113549.1.5.13`（PBES2）。
+- **修复（推荐）**：构建前把 `JAVA_HOME` 指向 **JDK 11/17**（command-line-tools 不自带 JDK 时尤其必要），再调 hvigorw；建议在打包脚本里显式设，避免依赖当前 shell 碰巧解析到的 JDK。
+- **不要**用 JDK 8 重新生成 `.p12`：已向 AppGallery 申请的 `.cer`/`.p7b` 是按当前密钥签发的，重生成会让证书链失效。
+- CI 通常自带较新 JBR 所以能过；本地和 CI 不一致往往就是本地 JDK 太旧。
+
+### 工具链约定
+
+- 统一使用 OHOS **Command Line Tools** 的 `hvigorw`（Linux 为 shell 脚本，Windows 为 `hvigorw.bat`）和 `ohpm`（装依赖）。**不要再使用 `devecocli`**。
+- Windows 上 `.bat` 需经 `cmd //c` 调用，路径用 `cygpath -w` 转换。
+- PowerShell 脚本（`.ps1`）在中文代码页 Windows 必须以 **UTF-8 BOM（utf-8-sig）** 保存，否则中文变 GBK 乱码、YAML 解析失败；普通 `.sh` 注释保持 UTF-8/LF。
+
+### 产物收集
+
+- `assembleHap` / `assembleApp` 在 `electron/build/<target>/outputs/default/` 下产出 `*-signed.hap` 和 `*-unsigned.hap`，**收集时优先取 `*-signed.hap`**。
 
 ## 参考文档
 

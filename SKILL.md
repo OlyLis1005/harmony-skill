@@ -1,7 +1,7 @@
 ---
 name: harmony-skill
 description: 鸿蒙（HarmonyOS NEXT）应用开发技能包。触发条件：用户需要开发鸿蒙应用、编写 ArkTS/ArkUI 代码、创建鸿蒙工程、调试、Electron 鸿蒙 PC 开发、迁移 Electron 项目、或咨询鸿蒙开发问题。覆盖 ArkTS 语法、ArkUI 声明式 UI、Stage 模型、路由导航、网络请求、数据持久化、Electron for HarmonyOS。
-version: 2.1.0
+version: 2.2.0
 ---
 
 # 鸿蒙应用开发
@@ -265,6 +265,27 @@ new BrowserWindow({
 - `build-profile.json5` 中 `app.products` 定义产品（如 `default`、`prod`），每个 product 的 `signingConfig` 指向 `app.signingConfigs` 中的某条（release / debug 签名）。
 - **常见遗漏**：模块级 `modules[].targets[].applyToProducts` 必须包含该模块要构建的所有 product。新增 `prod` 等产品后，若忘了把它加入 `electron` 模块的 `applyToProducts`，则 `-p product=prod` 会因无模块可构建而失败。
 - `storePassword`/`keyPassword` 在 `build-profile.json5` 中是 DevEco **加密串**（`0000001A…` 前缀），不是明文，排错时勿当明文密码处理。
+
+### App 包 hdc 安装报 9568320（no signature file）— appWithSignedPkg
+
+- **报错特征**：`hdc install xxx.app` → `code:9568320 error: no signature file`。
+- **根因**：`assembleApp` 默认产出的 app 包里内层 hap/hsp 是**未签名**的（即便产物名叫 `*-signed.app`），设备安装时校验内层无签名 → 9568320。
+- **修复**：在 `build-profile.json5` 中为 product 开启 `packOptions.appWithSignedPkg: true`，让构建额外把 app 包内的 hap/hsp 也签名。开启后普通 `*-signed.app` 即可直接 `hdc install` 成功（无需改用 `*-all-signed.app`）。DevEco Studio 6.0.2 Beta1+ 支持。
+- **层级坑（重要）**：`packOptions` **不能**放顶层，也**不能**直接放 `app` 下，否则报 `00303038 Configuration Error / property name must be valid`。`app` 直接子字段仅允许 `signingConfigs / products / buildModeSet / multiProjects / capabilities`。
+  - **正确层级**：`app → products[] → buildOption → packOptions → appWithSignedPkg`。每个需要构建 app 的 product（如 `default`、`prod`）都要各自加。
+  ```json5
+  // build-profile.json5
+  "products": [
+    {
+      "name": "default",
+      "signingConfig": "debug",
+      "buildOption": {
+        "packOptions": { "appWithSignedPkg": true }
+      }
+    }
+  ]
+  ```
+- **前置条件**：需已配置签名材料，且 `hvigor-config.json5` 的 `enableSignTask` 未设为 `false`。
 
 ### 签名 SignHap 失败：JDK 版本不匹配（高频坑）
 

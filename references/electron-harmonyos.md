@@ -853,4 +853,41 @@ child.stdout.on("data", data => { output += data.toString(); });
 child.on("close", code => {
     if (code === 0) console.log(output);
 });
+
+---
+
+### 16.6 让打包工具注入 hnp（command-line-tools / DevEco Studio 补丁）
+
+默认 hap 打包脚本不含 `--hnp-path`，必须给工具链的 hvigor-ohos-plugin 补丁，否则工程根 `hnp/` 不会被打进 hap，运行时 `child_process` 找不到二进制。补丁改的是**已安装的工具链文件**（非工程文件），CI 与每个开发机都需各自打。
+
+1. `packing-tool-options.js`（`PackingToolOptions` 类）增加方法：
+   ```javascript
+   addHnpPath(t) { return this.addFieldAndPath("--hnp-path", t); }
+   ```
+2. `base-pack-hap-task.js` 的 `generateCommand` 中，在 `new PackingToolOptions()` 之后追加：若 `process.cwd()` 下存在 `hnp` 目录，调用 `a.addHnpPath(hnpPath)`（变量名随 SDK 版本不同，有的是 `a`、有的是 `s`，按实际文件调整；已打过补丁则跳过）。
+3. DevEco Studio 与 command-line-tools 同 SDK，插件目录布局一致（通常在 `tools/hvigor/hvigor-ohos-plugin/src/...`）。
+
+> 工程里把 `.hnp` 放在根 `hnp/<ABI>/`（如 `hnp/arm64-v8a/`），打包脚本执行 `hvigorw assembleHap` 时 cwd 为该工程根，补丁即自动把 hnp 注入 hap。
+
+---
+
+## 十七、应用名与图标定制（单 EntryAbility 应用）
+
+> 桌面显示的应用名与图标来自 **Electron 模块（Ability 级）**，不是 AppScope 级。官方 README「替换图标在 AppScope media」对**启动器图标**是误导，本项目已实测验证。
+
+### 17.1 应用显示名
+- 桌面/任务里的名字 = `EntryAbility.label` → 字符串资源项 `EntryAbility_label`。
+- 实际位置：`electron/src/main/resources/zh_CN/element/string.json`（中文系统走 `zh_CN`，覆盖 `base`）；英文环境改 `en_US`。**只改 `base` 不够**，各语言目录须改一致。
+- AppScope 的 `app_name` 不影响桌面显示名，仅用于应用信息页。
+
+### 17.2 桌面启动器图标
+- 桌面图标 = `EntryAbility.icon` → `$media:app_icon` → `electron/src/main/resources/base/media/app_icon.png`。
+- 改这一张即可（Electron 模块通常只有 `base/media`，无语言覆盖）；同目录 `startIcon.png`（启动窗口/任务列表图标）一并换保持一致。
+- AppScope 的 `layered_image`（`foreground.png`+`background.png`）只用于应用信息页/兜底，不改桌面图标。
+- `layered_image` 为分层合成图标（前景盖背景 + 系统遮罩），若需整图显示，确保 `foreground.png` 主体居中、四周留透明，并调好 `background.png` 底色。
+
+### 17.3 资源改动不生效 → clean + 重装
+- 改 string.json / 图标 / 配置后桌面仍显示旧值：先 `hvigorw clean` 清增量缓存再构建（强制重编资源表）。
+- 改图标后覆盖升级安装：应用名立即刷新，但**图标位图按 bundleName 缓存、升级不刷新** → 需 `hdc uninstall <bundleName>` 后重装；仍不行重启设备。
+- 打包脚本建议默认 `hvigorw clean`，用 `PACK_NO_CLEAN=1` 开关跳过以提速；`clean` 只删 `build/`，不影响源码树里的 `.hnp` 等同步产物。
 ```
